@@ -16,7 +16,7 @@ interface DiscoverProfile {
   photo_url: string | null;
   primary_tag: string | null;
   is_beacon_active: boolean;
-  score: number;
+  match_score: number;
   match_reason: string;
   conversation_starter: string;
 }
@@ -61,7 +61,12 @@ export default function DiscoverPage() {
       if (search) params.set("search", search);
 
       const res = await fetch(`/api/matching/discover?${params}`);
-      const { profiles: fetched, total: t } = await res.json();
+      const { profiles: raw, total: t } = await res.json();
+      // Rename `score` → `match_score` to match ProfileCard props
+      const fetched = (raw || []).map((p: DiscoverProfile & { score?: number }) => ({
+        ...p,
+        match_score: p.score ?? p.match_score ?? 0,
+      }));
 
       if (reset) {
         setProfiles(fetched || []);
@@ -108,7 +113,7 @@ export default function DiscoverPage() {
     const res = await fetch("/api/matching/random");
     const { profile, match_reason, conversation_starter } = await res.json();
     if (profile) {
-      setRandomProfile({ ...profile, score: 0, match_reason, conversation_starter });
+      setRandomProfile({ ...profile, match_score: 0, match_reason, conversation_starter });
     }
   };
 
