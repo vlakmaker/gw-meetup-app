@@ -439,8 +439,8 @@ function Toggle({
       style={{ background: checked ? "var(--accent-primary)" : "var(--bg-primary)" }}
     >
       <span
-        className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
-        style={{ transform: checked ? "translateX(21px)" : "translateX(2px)" }}
+        className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+        style={{ transform: checked ? "translateX(20px)" : "translateX(0)" }}
       />
     </button>
   );
