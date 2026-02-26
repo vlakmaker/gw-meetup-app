@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { INTEREST_TAGS, LOOKING_FOR, TAG_COLORS } from "@/lib/constants";
@@ -9,6 +9,16 @@ import imageCompression from "browser-image-compression";
 export default function OnboardingPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Redirect users who already have a profile
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { router.push("/auth/login"); return; }
+      supabase.from("profiles").select("id").eq("id", user.id).single()
+        .then(({ data }) => { if (data) router.push("/discover"); });
+    });
+  }, [router]);
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);

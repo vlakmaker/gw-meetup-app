@@ -6,10 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 function TitleRevealContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTitle = searchParams.get("title") || "The Mystery Coder";
+  const initialTitle = searchParams.get("title") || "";
+  const noTitle = !initialTitle;
 
   const [title, setTitle] = useState(initialTitle);
-  const [regenerations, setRegenerations] = useState(1);
+  const [regenerations, setRegenerations] = useState(noTitle ? 0 : 1);
   const [loading, setLoading] = useState(false);
   const [revealed, setRevealed] = useState(false);
 
@@ -46,21 +47,27 @@ function TitleRevealContent() {
         Your Claude Title
       </p>
 
-      <div
-        className="transition-all duration-500 mb-8"
-        style={{ opacity: revealed ? 1 : 0, transform: revealed ? "scale(1)" : "scale(0.9)" }}
-      >
-        <h1
-          className="font-mono font-extrabold leading-tight"
-          style={{
-            fontSize: "clamp(1.8rem, 8vw, 2.5rem)",
-            color: "var(--accent-primary)",
-            textShadow: "0 0 40px rgba(220, 107, 47, 0.5)",
-          }}
+      {title ? (
+        <div
+          className="transition-all duration-500 mb-8"
+          style={{ opacity: revealed ? 1 : 0, transform: revealed ? "scale(1)" : "scale(0.9)" }}
         >
-          {title}
-        </h1>
-      </div>
+          <h1
+            className="font-mono font-extrabold leading-tight"
+            style={{
+              fontSize: "clamp(1.8rem, 8vw, 2.5rem)",
+              color: "var(--accent-primary)",
+              textShadow: "0 0 40px rgba(220, 107, 47, 0.5)",
+            }}
+          >
+            {title}
+          </h1>
+        </div>
+      ) : (
+        <div className="mb-8 text-text-secondary text-sm">
+          Couldn&apos;t generate a title right now — tap below to try again.
+        </div>
+      )}
 
       <p className="text-text-secondary text-sm mb-10 max-w-[280px]">
         This is how you&apos;ll show up at the meetup. Make it count.
