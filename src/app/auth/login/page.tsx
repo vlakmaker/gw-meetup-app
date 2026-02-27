@@ -1,16 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+
+const COOLDOWN_SECONDS = 60;
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (cooldown > 0) return;
     setLoading(true);
     setError(null);
 
@@ -29,6 +39,7 @@ export default function LoginPage() {
     }
 
     setSent(true);
+    setCooldown(COOLDOWN_SECONDS);
     setLoading(false);
   };
 
@@ -40,12 +51,18 @@ export default function LoginPage() {
         <p className="text-text-secondary mb-6">
           We sent a magic link to <span className="text-text-primary font-medium">{email}</span>
         </p>
-        <button
-          onClick={() => setSent(false)}
-          className="text-text-secondary text-sm underline underline-offset-4 hover:text-text-primary transition-colors"
-        >
-          Use a different email
-        </button>
+        {cooldown > 0 ? (
+          <p className="text-text-secondary text-sm">
+            Resend available in {cooldown}s
+          </p>
+        ) : (
+          <button
+            onClick={() => setSent(false)}
+            className="text-text-secondary text-sm underline underline-offset-4 hover:text-text-primary transition-colors"
+          >
+            Use a different email
+          </button>
+        )}
       </div>
     );
   }
