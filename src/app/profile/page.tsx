@@ -165,7 +165,6 @@ export default function MyProfilePage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -174,7 +173,6 @@ export default function MyProfilePage() {
         router.push("/auth/login");
         return;
       }
-      setUserId(user.id);
       const { data } = await supabase
         .from("profiles")
         .select("*")
@@ -247,20 +245,22 @@ export default function MyProfilePage() {
     setPhotoError(null);
 
     let newPhotoUrl = profile?.photo_url || null;
-    if (photoFile && userId) {
-      const supabase = createClient();
-      const ext = photoFile.type === "image/png" ? "png" : "jpg";
-      const path = `${userId}/avatar.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(path, photoFile, { upsert: true, contentType: photoFile.type });
-      if (uploadError) {
-        setPhotoError(`Photo upload failed: ${uploadError.message}`);
+    if (photoFile) {
+      const formData = new FormData();
+      formData.append("file", photoFile);
+      const res = await fetch("/api/profile/photo", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        newPhotoUrl = url;
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setPhotoError(`Photo upload failed: ${json.error ?? res.statusText}`);
         setSaving(false);
         return;
       }
-      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
-      newPhotoUrl = `${publicUrl}?t=${Date.now()}`;
     }
 
     const body = {

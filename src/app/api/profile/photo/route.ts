@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -19,12 +20,20 @@ export async function POST(request: Request) {
   const ext = file.type === "image/png" ? "png" : "jpg";
   const path = `${user.id}/avatar.${ext}`;
 
-  // Convert File to Buffer — the Node.js File from formData is not
-  // reliably handled by the Supabase storage client.
+  // Use the admin client for storage so the service role key bypasses
+  // RLS policies entirely — no per-bucket policy setup required.
+  const adminClient = createAdminClient();
+
+  // Ensure the bucket exists and is public (no-op if already set up).
+  const { error: bucketError } = await adminClient.storage.createBucket("avatars", { public: true });
+  if (bucketError && !bucketError.message.includes("already exists")) {
+    await adminClient.storage.updateBucket("avatars", { public: true });
+  }
+
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const { error } = await supabase.storage
+  const { error } = await adminClient.storage
     .from("avatars")
     .upload(path, buffer, { upsert: true, contentType: file.type });
 
@@ -32,7 +41,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const { data: { publicUrl } } = supabase.storage
+  const { data: { publicUrl } } = adminClient.storage
     .from("avatars")
     .getPublicUrl(path);
 
