@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
   // Skip auth check entirely for public paths — reduces Supabase auth API pressure
-  const publicPaths = ["/", "/auth/login", "/auth/callback", "/profile/"];
+  const publicPaths = ["/", "/auth/login", "/auth/callback", "/profile/", "/privacy", "/terms"];
   const isPublicPath = publicPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );
