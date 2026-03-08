@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import GWProfileCard from "@/components/GWProfileCard";
 import BottomNav from "@/components/BottomNav";
+import { toast } from "sonner";
 
 interface GWProfile {
   id: string;
@@ -118,6 +119,7 @@ export default function DiscoverPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to_user: toUserId }),
       });
+      toast.success("Wave sent! 👋", { description: "They'll see your wave in their feed." });
     } catch {
       // Optimistic — keep waved state regardless
     }

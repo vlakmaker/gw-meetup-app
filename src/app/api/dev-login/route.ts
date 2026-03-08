@@ -25,5 +25,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ url: data.properties.action_link });
+  // Return the hashed token so the client can verify directly — no external redirect needed.
+  return NextResponse.json({ token_hash: data.properties.hashed_token });
 }

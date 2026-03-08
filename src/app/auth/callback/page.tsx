@@ -1,5 +1,8 @@
 "use client";
 
+// Auth callback must never be statically prerendered — it reads URL params at runtime.
+export const dynamic = "force-dynamic";
+
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";

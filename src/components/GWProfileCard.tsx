@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CURRENT_SEASONS, HOPING_FOR } from "@/lib/constants";
+import { Badge } from "@/components/ui/badge";
 
 interface GWProfileCardProps {
   id: string;
@@ -107,20 +108,14 @@ export default function GWProfileCard({
       {/* Season + hoping for */}
       <div className="flex flex-wrap gap-1.5">
         {season && (
-          <span
-            className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-            style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
-          >
+          <Badge variant="secondary" className="text-[11px] font-medium rounded-full">
             {season.emoji} {season.label}
-          </span>
+          </Badge>
         )}
         {hoping && (
-          <span
-            className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-            style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
-          >
+          <Badge variant="secondary" className="text-[11px] font-medium rounded-full">
             Wants: {hoping.label}
-          </span>
+          </Badge>
         )}
       </div>
 
@@ -130,16 +125,13 @@ export default function GWProfileCard({
           {discussion_topics.map((topic) => {
             const isHighlighted = highlightTopics.includes(topic);
             return (
-              <span
+              <Badge
                 key={topic}
-                className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                style={{
-                  background: isHighlighted ? "var(--accent-primary)" : "var(--bg-elevated)",
-                  color: isHighlighted ? "white" : "var(--text-secondary)",
-                }}
+                variant={isHighlighted ? "default" : "secondary"}
+                className="text-[11px] font-medium rounded-full"
               >
                 {topic}
-              </span>
+              </Badge>
             );
           })}
         </div>

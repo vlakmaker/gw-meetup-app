@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 interface Meetup {
   id: string;
@@ -67,6 +73,7 @@ export default function MeetupAdminPage() {
   // Matching
   const [matching, setMatching] = useState(false);
   const [matchResult, setMatchResult] = useState<string | null>(null);
+  const [matchDialogOpen, setMatchDialogOpen] = useState(false);
 
   // Co-admin management
   const [newCoAdminEmail, setNewCoAdminEmail] = useState("");
@@ -272,10 +279,9 @@ export default function MeetupAdminPage() {
               placeholder="cohost@example.com"
               className="flex-1 px-4 py-2.5 bg-bg-secondary border border-border-subtle rounded-xl text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
             />
-            <button onClick={addCoAdmin} disabled={coAdminSaving || !newCoAdminEmail.trim()}
-              className="px-4 py-2.5 bg-accent-primary text-white text-sm font-semibold rounded-xl disabled:opacity-50">
+            <Button onClick={addCoAdmin} disabled={coAdminSaving || !newCoAdminEmail.trim()}>
               Add
-            </button>
+            </Button>
           </div>
         )}
       </Section>
@@ -303,13 +309,12 @@ export default function MeetupAdminPage() {
             placeholder="Add a topic..."
             className="flex-1 px-4 py-2.5 bg-bg-secondary border border-border-subtle rounded-xl text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
           />
-          <button
+          <Button
             onClick={addTopic}
             disabled={addingTopic || !newTopic.trim()}
-            className="px-4 py-2.5 bg-accent-primary text-white text-sm font-semibold rounded-xl disabled:opacity-50"
           >
             Add
-          </button>
+          </Button>
         </div>
       </Section>
 
@@ -336,13 +341,12 @@ export default function MeetupAdminPage() {
             placeholder="What's one thing you've changed your mind about recently?"
             className="flex-1 px-4 py-2.5 bg-bg-secondary border border-border-subtle rounded-xl text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
           />
-          <button
+          <Button
             onClick={addPrompt}
             disabled={addingPrompt || !newPrompt.trim()}
-            className="px-4 py-2.5 bg-accent-primary text-white text-sm font-semibold rounded-xl disabled:opacity-50"
           >
             Add
-          </button>
+          </Button>
         </div>
       </Section>
 
@@ -395,13 +399,32 @@ export default function MeetupAdminPage() {
         title="Run matching"
         subtitle={`Scores all pairs of checked-in attendees with AI. Run this once everyone is checked in.`}
       >
-        <button
-          onClick={runMatching}
+        {/* Trigger button — kept outside AlertDialog to avoid button-inside-button nesting */}
+        <Button
           disabled={matching || checkedInCount < 2}
-          className="w-full py-4 bg-accent-primary text-white font-semibold rounded-2xl disabled:opacity-40 transition-opacity"
+          className="w-full rounded-2xl"
+          size="lg"
+          onClick={() => setMatchDialogOpen(true)}
         >
-          {matching ? "Running AI matching..." : `Run matching for ${checkedInCount} attendees`}
-        </button>
+          {matching ? "Running AI matching..." : `Run matching for ${checkedInCount} ${checkedInCount === 1 ? "attendee" : "attendees"}`}
+        </Button>
+
+        <AlertDialog open={matchDialogOpen} onOpenChange={setMatchDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Run AI matching?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will score all pairs across {checkedInCount} checked-in {checkedInCount === 1 ? "attendee" : "attendees"}. Any previous match scores will be overwritten. This uses AI credits.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={runMatching} className="bg-accent-primary hover:bg-accent-primary/90">
+                Run matching
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {checkedInCount < 2 && (
           <p className="text-text-secondary text-xs mt-2 text-center">Check in at least 2 people to run matching.</p>
         )}

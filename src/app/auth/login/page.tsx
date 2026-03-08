@@ -111,8 +111,18 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    // Navigate to the generated magic link URL — no email required
-    router.push(json.url);
+    // Verify the token directly on the client — no external redirect needed.
+    const supabase = createClient();
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      token_hash: json.token_hash,
+      type: "magiclink",
+    });
+    if (verifyError) {
+      setError(verifyError.message);
+      setLoading(false);
+      return;
+    }
+    router.push("/discover");
   };
 
   if (sent) {

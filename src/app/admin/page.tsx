@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
 
 interface Meetup {
   id: string;
@@ -95,12 +96,9 @@ export default function AdminPage() {
           <h1 className="font-mono text-2xl font-bold">Admin</h1>
           <p className="text-text-secondary text-sm mt-0.5">Manage your meetups</p>
         </div>
-        <button
-          onClick={() => { setShowForm(true); setNewCode(generateCode()); }}
-          className="px-4 py-2 bg-accent-primary text-white text-sm font-semibold rounded-xl"
-        >
+        <Button onClick={() => { setShowForm(true); setNewCode(generateCode()); }}>
           + New meetup
-        </button>
+        </Button>
       </div>
 
       {/* Create meetup form */}
@@ -139,13 +137,13 @@ export default function AdminPage() {
                   onChange={(e) => setNewCode(e.target.value.toUpperCase().slice(0, 10))}
                   className="flex-1 px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary font-mono focus:outline-none focus:border-accent-primary transition-colors"
                 />
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setNewCode(generateCode())}
-                  className="px-3 py-2 text-xs text-text-secondary rounded-xl"
-                  style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)" }}
                 >
                   Shuffle
-                </button>
+                </Button>
               </div>
               <p className="text-xs text-text-secondary mt-1">
                 Invite link: <span className="font-mono">/join/{newCode}</span>
@@ -156,20 +154,20 @@ export default function AdminPage() {
           {formError && <p className="text-red-400 text-sm mt-3">{formError}</p>}
 
           <div className="flex gap-3 mt-4">
-            <button
+            <Button
+              variant="outline"
+              className="flex-1"
               onClick={() => setShowForm(false)}
-              className="flex-1 py-3 text-text-secondary font-semibold rounded-xl"
-              style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)" }}
             >
               Cancel
-            </button>
-            <button
-              onClick={createMeetup}
+            </Button>
+            <Button
+              className="flex-[2]"
               disabled={creating || !newName.trim()}
-              className="flex-[2] py-3 bg-accent-primary text-white font-semibold rounded-xl disabled:opacity-50"
+              onClick={createMeetup}
             >
               {creating ? "Creating..." : "Create meetup"}
-            </button>
+            </Button>
           </div>
         </div>
       )}

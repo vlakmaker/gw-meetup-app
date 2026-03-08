@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono, Geist } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/sonner";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -48,6 +49,7 @@ export default function RootLayout({
         className={`${dmSans.variable} ${jetbrainsMono.variable} font-sans antialiased bg-bg-primary text-text-primary`}
       >
         <main className="min-h-dvh mx-auto max-w-[480px]">{children}</main>
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );
