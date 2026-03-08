@@ -1,13 +1,11 @@
 "use client";
 
-// Auth callback must never be statically prerendered — it reads URL params at runtime.
-export const dynamic = "force-dynamic";
-
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function CallbackPage() {
+// Inner component that reads URL params — must be wrapped in <Suspense> per Next.js rules.
+function CallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -62,9 +60,16 @@ export default function CallbackPage() {
     handle();
   }, [searchParams, router]);
 
+  return null;
+}
+
+export default function CallbackPage() {
   return (
     <div className="flex items-center justify-center min-h-dvh">
       <p className="text-text-secondary text-sm">Signing you in…</p>
+      <Suspense>
+        <CallbackInner />
+      </Suspense>
     </div>
   );
 }
