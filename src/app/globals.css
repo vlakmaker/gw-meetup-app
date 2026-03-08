@@ -7,37 +7,37 @@
   --font-mono: var(--font-jetbrains-mono);
 
   /* Background */
-  --color-bg-primary: #0A0A0F;
-  --color-bg-secondary: #12121A;
-  --color-bg-elevated: #1A1A25;
+  --color-bg-primary: #FAFAF8;
+  --color-bg-secondary: #F0EDE6;
+  --color-bg-elevated: #FFFFFF;
 
   /* Text */
-  --color-text-primary: #F0EDE6;
-  --color-text-secondary: #8E8B82;
-  --color-text-accent: #8B5CF6;
+  --color-text-primary: #0A0A0F;
+  --color-text-secondary: #6B6866;
+  --color-text-accent: #7C3AED;
 
   /* Accent — Generalist World brand palette */
-  --color-accent-primary: #8B5CF6;
-  --color-accent-secondary: #FBBF24;
-  --color-accent-success: #10B981;
+  --color-accent-primary: #7C3AED;
+  --color-accent-secondary: #F59E0B;
+  --color-accent-success: #059669;
 
   /* Borders */
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-border-hover: rgba(255, 255, 255, 0.12);
+  --color-border-subtle: rgba(0, 0, 0, 0.06);
+  --color-border-hover: rgba(0, 0, 0, 0.12);
 }
 
 :root {
-  --bg-primary: #0A0A0F;
-  --bg-secondary: #12121A;
-  --bg-elevated: #1A1A25;
-  --text-primary: #F0EDE6;
-  --text-secondary: #8E8B82;
-  --text-accent: #8B5CF6;
-  --accent-primary: #8B5CF6;
-  --accent-secondary: #FBBF24;
-  --accent-success: #10B981;
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(255, 255, 255, 0.12);
+  --bg-primary: #FAFAF8;
+  --bg-secondary: #F0EDE6;
+  --bg-elevated: #FFFFFF;
+  --text-primary: #0A0A0F;
+  --text-secondary: #6B6866;
+  --text-accent: #7C3AED;
+  --accent-primary: #7C3AED;
+  --accent-secondary: #F59E0B;
+  --accent-success: #059669;
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-hover: rgba(0, 0, 0, 0.12);
   --glow-orange: 0 0 20px rgba(220, 107, 47, 0.3);
   --glow-purple: 0 0 20px rgba(124, 58, 237, 0.3);
 }

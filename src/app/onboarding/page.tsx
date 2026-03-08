@@ -29,6 +29,7 @@ export default function OnboardingPage() {
   const [name, setName] = useState("");
   const [workOneLiner, setWorkOneLiner] = useState("");
   const [currentSeason, setCurrentSeason] = useState<string | null>(null);
+  const [otherSeasonText, setOtherSeasonText] = useState("");
   const [discussionTopics, setDiscussionTopics] = useState<string[]>([]);
   const [hopingFor, setHopingFor] = useState<string | null>(null);
   const [linkedinUrl, setLinkedinUrl] = useState("");
@@ -131,7 +132,7 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           name,
           work_one_liner: workOneLiner,
-          current_season: currentSeason,
+          current_season: currentSeason === "other" ? otherSeasonText.trim() : currentSeason,
           discussion_topics: discussionTopics,
           hoping_for: hopingFor,
           linkedin_url: linkedinUrl || null,
@@ -163,7 +164,7 @@ export default function OnboardingPage() {
   const TOTAL_STEPS = 5;
   const canProceedStep1 = name.trim().length > 0;
   const canProceedStep2 = workOneLiner.trim().length > 0;
-  const canProceedStep3 = currentSeason !== null;
+  const canProceedStep3 = currentSeason !== null && (currentSeason !== "other" || otherSeasonText.trim().length > 0);
   const canProceedStep4 = discussionTopics.length >= 1;
   const canProceedStep5 = hopingFor !== null;
 
@@ -198,8 +199,8 @@ export default function OnboardingPage() {
       {/* Step 1: Name + photo */}
       {step === 1 && (
         <div className="flex flex-col flex-1 animate-fade-up">
-          <h1 className="font-mono text-2xl font-bold mb-1">Who are you?</h1>
-          <p className="text-text-secondary text-sm mb-8">Just the basics</p>
+          <h1 className="font-mono text-2xl font-bold mb-1">Let&apos;s build your profile</h1>
+          <p className="text-text-secondary text-sm mb-8">Takes 3 minutes, tops!</p>
 
           <div className="flex items-center gap-4 mb-6">
             <button
@@ -230,7 +231,7 @@ export default function OnboardingPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Alana"
+              placeholder="Your name"
               className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
             />
           </div>
@@ -250,15 +251,15 @@ export default function OnboardingPage() {
       {/* Step 2: Work one-liner */}
       {step === 2 && (
         <div className="flex flex-col flex-1 animate-fade-up">
-          <h1 className="font-mono text-2xl font-bold mb-1">What do you do?</h1>
-          <p className="text-text-secondary text-sm mb-8">One sentence — make it human, not your CV</p>
+          <h1 className="font-mono text-2xl font-bold mb-1">Give us a one-liner of what you do</h1>
+          <p className="text-text-secondary text-sm mb-8">Be as creative as you like!</p>
 
           <div>
             <input
               type="text"
               value={workOneLiner}
               onChange={(e) => setWorkOneLiner(e.target.value.slice(0, 80))}
-              placeholder="Building AI tools for climate, figuring out the rest"
+              placeholder="Building a better world, figuring out the rest."
               className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
             />
             <p className="text-text-secondary text-xs mt-1 text-right">{workOneLiner.length}/80</p>
@@ -289,19 +290,30 @@ export default function OnboardingPage() {
             {CURRENT_SEASONS.map((s) => {
               const active = currentSeason === s.value;
               return (
-                <button
-                  key={s.value}
-                  onClick={() => setCurrentSeason(s.value)}
-                  className="w-full px-4 py-3.5 rounded-xl text-left flex items-center gap-3 font-medium transition-all"
-                  style={{
-                    background: active ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
-                    color: active ? "var(--accent-primary)" : "var(--text-primary)",
-                    border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
-                  }}
-                >
-                  <span className="text-xl">{s.emoji}</span>
-                  {s.label}
-                </button>
+                <div key={s.value}>
+                  <button
+                    onClick={() => setCurrentSeason(s.value)}
+                    className="w-full px-4 py-3.5 rounded-xl text-left flex items-center gap-3 font-medium transition-all"
+                    style={{
+                      background: active ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
+                      color: active ? "var(--accent-primary)" : "var(--text-primary)",
+                      border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                    }}
+                  >
+                    <span className="text-xl">{s.emoji}</span>
+                    {s.label}
+                  </button>
+                  {s.value === "other" && active && (
+                    <input
+                      type="text"
+                      value={otherSeasonText}
+                      onChange={(e) => setOtherSeasonText(e.target.value.slice(0, 60))}
+                      placeholder="Describe your season…"
+                      autoFocus
+                      className="w-full mt-2 px-4 py-3 bg-bg-secondary border border-accent-primary rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none transition-colors"
+                    />
+                  )}
+                </div>
               );
             })}
           </div>
@@ -372,7 +384,7 @@ export default function OnboardingPage() {
       {step === 5 && (
         <div className="flex flex-col flex-1 animate-fade-up">
           <h1 className="font-mono text-2xl font-bold mb-1">What are you hoping for?</h1>
-          <p className="text-text-secondary text-sm mb-6">Pick what resonates most tonight</p>
+          <p className="text-text-secondary text-sm mb-6">Pick what resonates most for this meetup</p>
 
           <div className="flex flex-col gap-3 mb-6">
             {HOPING_FOR.map((h) => {
@@ -401,38 +413,32 @@ export default function OnboardingPage() {
             style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}
           >
             <div>
-              <label className="text-sm text-text-secondary mb-1.5 block">LinkedIn URL</label>
-              <input
-                type="url"
-                value={linkedinUrl}
-                onChange={(e) => setLinkedinUrl(e.target.value)}
-                placeholder="https://linkedin.com/in/yourname"
-                className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
-              />
+              <label className="text-sm text-text-secondary mb-1.5 block">LinkedIn</label>
+              <div className="flex items-center bg-bg-secondary border border-border-subtle rounded-xl overflow-hidden focus-within:border-accent-primary transition-colors">
+                <span className="pl-4 pr-1 text-text-secondary text-sm whitespace-nowrap select-none">linkedin.com/in/</span>
+                <input
+                  type="text"
+                  value={linkedinUrl.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").replace(/\/$/, "")}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    const match = val.match(/linkedin\.com\/in\/([^/?&#\s]+)/i);
+                    if (match) {
+                      setLinkedinUrl(`https://linkedin.com/in/${match[1]}`);
+                    } else {
+                      setLinkedinUrl(val ? `https://linkedin.com/in/${val}` : "");
+                    }
+                  }}
+                  placeholder="yourname"
+                  className="flex-1 pr-4 py-3 bg-transparent text-text-primary placeholder:text-text-secondary focus:outline-none"
+                />
+              </div>
             </div>
-
-            {linkedinUrl && (
-              <>
-                <div className="h-px" style={{ background: "var(--border-subtle)" }} />
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <p className="text-sm font-medium">Make LinkedIn public</p>
-                    <p className="text-xs text-text-secondary mt-0.5">
-                      {linkedinPublic
-                        ? "Visible to everyone at the meetup"
-                        : "Only revealed after a mutual wave"}
-                    </p>
-                  </div>
-                  <Toggle checked={linkedinPublic} onChange={setLinkedinPublic} />
-                </label>
-              </>
-            )}
 
             <div className="h-px" style={{ background: "var(--border-subtle)" }} />
 
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <p className="text-sm font-medium">Share email on connection</p>
+                <p className="text-sm font-medium">Share LinkedIn only after connecting</p>
                 <p className="text-xs text-text-secondary mt-0.5">Only shown after a mutual wave</p>
               </div>
               <Toggle checked={shareEmail} onChange={setShareEmail} />

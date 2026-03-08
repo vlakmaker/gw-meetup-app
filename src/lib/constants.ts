@@ -6,6 +6,7 @@ export const CURRENT_SEASONS: { value: string; label: string; emoji: string }[] 
   { value: "looking_for_role",   label: "Looking for a new role",  emoji: "🔍" },
   { value: "growing_in_role",    label: "Growing in my current role", emoji: "📈" },
   { value: "taking_a_break",     label: "Taking a break",          emoji: "☀️" },
+  { value: "other",              label: "Other",                   emoji: "✏️" },
 ];
 
 // Hoping for options — maps DB value to display label

@@ -343,14 +343,6 @@ export default function MyProfilePage() {
               </div>
               <Toggle checked={editLinkedinPublic} onChange={setEditLinkedinPublic} />
             </label>
-            <div className="h-px" style={{ background: "var(--border-subtle)" }} />
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <p className="text-sm font-medium">Share email on match</p>
-                <p className="text-xs text-text-secondary mt-0.5">Only visible to mutual matches</p>
-              </div>
-              <Toggle checked={editShareEmail} onChange={setEditShareEmail} />
-            </label>
           </div>
         </div>
 
@@ -433,18 +425,12 @@ export default function MyProfilePage() {
                 {profile.linkedin_public ? "PUBLIC" : "MUTUAL ONLY"}
               </span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Share email on match</span>
-              <span className="text-xs font-mono" style={{ color: profile.share_email ? "var(--accent-success)" : "var(--text-secondary)" }}>
-                {profile.share_email ? "ON" : "OFF"}
-              </span>
-            </div>
             {profile.linkedin_url && (
               <div className="flex items-center justify-between">
                 <span className="text-sm">LinkedIn</span>
                 <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer"
                   className="text-xs font-mono truncate max-w-[180px]" style={{ color: "var(--accent-primary)" }}>
-                  Linked →
+                  Link →
                 </a>
               </div>
             )}

@@ -10,6 +10,7 @@ interface Meetup {
   date: string | null;
   invite_code: string;
   created_at: string;
+  isCoAdmin?: boolean;
 }
 
 function generateCode() {
@@ -35,12 +36,26 @@ export default function AdminPage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.push("/auth/login"); return; }
       setUserId(user.id);
-      const { data } = await supabase
-        .from("meetups")
-        .select("id, name, date, invite_code, created_at")
-        .eq("admin_user_id", user.id)
-        .order("created_at", { ascending: false });
-      setMeetups(data || []);
+
+      const [{ data: owned }, { data: coAdmin }] = await Promise.all([
+        supabase
+          .from("meetups")
+          .select("id, name, date, invite_code, created_at")
+          .eq("admin_user_id", user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("meetups")
+          .select("id, name, date, invite_code, created_at")
+          .contains("co_admin_emails", [user.email!])
+          .order("created_at", { ascending: false }),
+      ]);
+
+      const ownedWithFlag = (owned || []).map((m) => ({ ...m, isCoAdmin: false }));
+      const coAdminWithFlag = (coAdmin || []).map((m) => ({ ...m, isCoAdmin: true }));
+      // Merge, deduplicate by id
+      const seen = new Set(ownedWithFlag.map((m) => m.id));
+      const merged = [...ownedWithFlag, ...coAdminWithFlag.filter((m) => !seen.has(m.id))];
+      setMeetups(merged);
       setLoading(false);
     });
   }, [router]);
@@ -174,7 +189,15 @@ export default function AdminPage() {
               className="w-full text-left px-5 py-4 rounded-2xl transition-all hover:border-border-hover"
               style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}
             >
-              <p className="font-semibold">{m.name}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold">{m.name}</p>
+                {m.isCoAdmin && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
+                    Co-admin
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-3 mt-1">
                 {m.date && <p className="text-xs text-text-secondary">{new Date(m.date).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}</p>}
                 <p className="text-xs font-mono text-accent-primary">/join/{m.invite_code}</p>

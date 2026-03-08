@@ -15,14 +15,14 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Claude Connect | Claude Code Meetup Singapore",
+  title: "Generalist World Meetup",
   description:
-    "Find your people at the Claude Code Meetup. AI-powered networking for 800 developers.",
+    "Find the right conversations in the room. AI-powered matching for curious, generalist thinkers.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Claude Connect",
+    title: "GW Meetup",
   },
 };
 
@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} font-sans antialiased bg-bg-primary text-text-primary`}
       >

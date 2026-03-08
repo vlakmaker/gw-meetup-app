@@ -104,14 +104,15 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  // Verify user is admin of this meetup
+  // Verify user is admin or co-admin of this meetup
   const { data: meetup } = await admin
     .from("meetups")
-    .select("id, admin_user_id")
+    .select("id, admin_user_id, co_admin_emails")
     .eq("id", meetup_id)
     .single();
 
-  if (!meetup || meetup.admin_user_id !== user.id) {
+  const isAdmin = meetup?.admin_user_id === user.id || meetup?.co_admin_emails?.includes(user.email!);
+  if (!meetup || !isAdmin) {
     return NextResponse.json({ error: "Not authorized for this meetup" }, { status: 403 });
   }
 

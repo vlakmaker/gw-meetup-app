@@ -9,6 +9,8 @@ interface Meetup {
   name: string;
   date: string | null;
   invite_code: string;
+  admin_user_id: string;
+  co_admin_emails: string[];
 }
 
 interface TopicOption {
@@ -52,6 +54,7 @@ export default function MeetupAdminPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [isPrimaryAdmin, setIsPrimaryAdmin] = useState(false);
 
   // Topic form
   const [newTopic, setNewTopic] = useState("");
@@ -65,6 +68,10 @@ export default function MeetupAdminPage() {
   const [matching, setMatching] = useState(false);
   const [matchResult, setMatchResult] = useState<string | null>(null);
 
+  // Co-admin management
+  const [newCoAdminEmail, setNewCoAdminEmail] = useState("");
+  const [coAdminSaving, setCoAdminSaving] = useState(false);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -72,13 +79,16 @@ export default function MeetupAdminPage() {
 
       const [{ data: meetupData }, { data: topicsData }, { data: promptsData }, { data: participantsData }] =
         await Promise.all([
-          supabase.from("meetups").select("id, name, date, invite_code").eq("id", meetupId).eq("admin_user_id", user.id).single(),
+          supabase.from("meetups").select("id, name, date, invite_code, admin_user_id, co_admin_emails").eq("id", meetupId).single(),
           supabase.from("topic_options").select("id, label, display_order").eq("meetup_id", meetupId).order("display_order"),
           supabase.from("conversation_prompts").select("id, prompt_text").eq("meetup_id", meetupId),
           supabase.from("profiles").select("id, name, photo_url, work_one_liner, current_season, discussion_topics, checked_in").eq("meetup_id", meetupId).order("name"),
         ]);
 
-      if (!meetupData) { router.push("/admin"); return; }
+      // Check access: must be primary admin or co-admin
+      const isAdmin = meetupData?.admin_user_id === user.id || meetupData?.co_admin_emails?.includes(user.email!);
+      if (!meetupData || !isAdmin) { router.push("/admin"); return; }
+      setIsPrimaryAdmin(meetupData.admin_user_id === user.id);
 
       setMeetup(meetupData);
       setTopics(topicsData || []);
@@ -174,6 +184,29 @@ export default function MeetupAdminPage() {
     setMatching(false);
   };
 
+  const addCoAdmin = async () => {
+    const email = newCoAdminEmail.trim().toLowerCase();
+    if (!email || !meetup) return;
+    if (meetup.co_admin_emails.includes(email)) { setNewCoAdminEmail(""); return; }
+    setCoAdminSaving(true);
+    const supabase = createClient();
+    const updated = [...meetup.co_admin_emails, email];
+    const { error } = await supabase.from("meetups").update({ co_admin_emails: updated }).eq("id", meetupId);
+    if (!error) {
+      setMeetup((prev) => prev ? { ...prev, co_admin_emails: updated } : prev);
+      setNewCoAdminEmail("");
+    }
+    setCoAdminSaving(false);
+  };
+
+  const removeCoAdmin = async (email: string) => {
+    if (!meetup) return;
+    const supabase = createClient();
+    const updated = meetup.co_admin_emails.filter((e) => e !== email);
+    const { error } = await supabase.from("meetups").update({ co_admin_emails: updated }).eq("id", meetupId);
+    if (!error) setMeetup((prev) => prev ? { ...prev, co_admin_emails: updated } : prev);
+  };
+
   const checkedInCount = participants.filter((p) => p.checked_in).length;
 
   if (loading) {
@@ -210,6 +243,41 @@ export default function MeetupAdminPage() {
             {copied ? "Copied!" : "Copy"}
           </button>
         </div>
+      </Section>
+
+      {/* Co-admins */}
+      <Section title="Co-admins" subtitle="Co-admins can check in participants, manage topics, and run matching">
+        <div className="space-y-2 mb-3">
+          {meetup?.co_admin_emails.length === 0 && (
+            <p className="text-text-secondary text-sm">No co-admins yet.</p>
+          )}
+          {meetup?.co_admin_emails.map((email) => (
+            <div key={email} className="flex items-center justify-between px-4 py-2.5 rounded-xl"
+              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+              <span className="text-sm font-mono">{email}</span>
+              {isPrimaryAdmin && (
+                <button onClick={() => removeCoAdmin(email)}
+                  className="text-text-secondary hover:text-red-400 transition-colors text-xs ml-3">✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+        {isPrimaryAdmin && (
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={newCoAdminEmail}
+              onChange={(e) => setNewCoAdminEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addCoAdmin()}
+              placeholder="cohost@example.com"
+              className="flex-1 px-4 py-2.5 bg-bg-secondary border border-border-subtle rounded-xl text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
+            />
+            <button onClick={addCoAdmin} disabled={coAdminSaving || !newCoAdminEmail.trim()}
+              className="px-4 py-2.5 bg-accent-primary text-white text-sm font-semibold rounded-xl disabled:opacity-50">
+              Add
+            </button>
+          </div>
+        )}
       </Section>
 
       {/* Topic options */}
