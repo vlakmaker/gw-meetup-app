@@ -1,18 +1,18 @@
-# Claude Connect
+# Generalist World Meetup Matcher
 
-A networking PWA that helps meetup attendees discover, match with, and connect with like-minded people at events. Built with Claude Code for the Claude Code Meetup Singapore.
+An AI-powered networking app for Generalist World meetups. Attendees build a profile, get matched by AI based on shared interests and intentions, and connect with people worth meeting in the room.
 
-**Live:** [claude-code-meetup.vercel.app](https://claude-code-meetup.vercel.app)
+**Live:** [gw-meetup-app.vercel.app](https://gw-meetup-app.vercel.app)
 
 ## Features
 
-- **AI-Powered Matching** — Claude scores attendee compatibility based on interests, roles, and project descriptions
-- **Claude Titles** — Each attendee gets a unique AI-generated title on their profile
-- **Discover Feed** — Browse attendees ranked by match score with conversation starters
-- **Waves & Connections** — Send interest signals; mutual waves become connections with shared contact info
-- **Beacon Mode** — Full-screen colored card to help people find you at the event
-- **Name Search** — Opt-in discoverability so people can find you by name
-- **Magic Link Auth** — Frictionless sign-in via email, Google, or GitHub
+- **AI-Powered Matching** — Claude scores attendee compatibility based on discussion topics, current season, and what they're hoping for
+- **Guided Onboarding** — 5-step profile setup: name, work one-liner, current season, discussion topics, intentions + LinkedIn
+- **Discover Feed** — Browse top matches ranked by score, with match reasons and conversation starters
+- **Waves & Connections** — Send a wave to signal interest; mutual waves unlock LinkedIn and create a connection
+- **Admin Panel** — Create meetups, set discussion topics, add conversation starters, check in attendees, and run AI matching
+- **Co-admin Support** — Add co-hosts to share admin access for a meetup
+- **Magic Link + Google Auth** — Frictionless sign-in, no password required
 
 ## Tech Stack
 
@@ -21,8 +21,8 @@ A networking PWA that helps meetup attendees discover, match with, and connect w
 | Framework | Next.js 16 (App Router, Turbopack) |
 | Language | TypeScript |
 | Styling | Tailwind CSS 4 |
-| Database | Supabase (Postgres + Auth + Storage + Realtime) |
-| AI | Anthropic Claude API (match scoring + title generation) |
+| Database | Supabase (Postgres + Auth + Storage) |
+| AI | Anthropic Claude API (match scoring) |
 | Hosting | Vercel |
 
 ## Getting Started
@@ -37,8 +37,8 @@ A networking PWA that helps meetup attendees discover, match with, and connect w
 
 1. **Clone the repo:**
    ```bash
-   git clone https://github.com/anthropics/claude-code-meetup-app.git
-   cd claude-code-meetup-app
+   git clone https://github.com/alanagoh/gw-meetup-app.git
+   cd gw-meetup-app
    ```
 
 2. **Install dependencies:**
@@ -61,8 +61,8 @@ A networking PWA that helps meetup attendees discover, match with, and connect w
 
 4. **Set up the database:**
    - Create a new Supabase project
-   - Run the migrations in `supabase/migrations/`
-   - See `ARCHITECTURE.md` for the full data model (tables: `profiles`, `matches`, `waves`, `connections`, `beacon_pings`)
+   - Run the migrations in `supabase/migrations/` in order
+   - Tables: `meetups`, `profiles`, `topic_options`, `conversation_prompts`, `matches`, `waves`, `connections`
 
 5. **Run the dev server:**
    ```bash
@@ -70,43 +70,39 @@ A networking PWA that helps meetup attendees discover, match with, and connect w
    ```
    Open [http://localhost:3000](http://localhost:3000).
 
+## How It Works
+
+### Admin flow
+1. Go to `/admin` → create a meetup with a name, date, and invite code
+2. Add discussion topics and conversation starters
+3. Share the `/join/[code]` invite link with attendees before the event
+4. On the day: check in attendees as they arrive, then run AI matching
+5. Optionally add co-admins by email so co-hosts can help manage
+
+### Attendee flow
+1. Click the invite link → sign in with Google or magic link
+2. Complete 5-step onboarding (name, work, season, topics, intentions)
+3. See your top matches in the Discover feed
+4. Wave at people you want to meet → mutual waves create a connection
+
 ## Project Structure
 
 ```
 src/
   app/              # Next.js App Router pages
-    api/            # API routes (matching, waves, profiles, etc.)
+    api/            # API routes (matching, profile, waves, etc.)
+    admin/          # Admin panel (meetup management)
     auth/           # Auth callback + login
-    beacon/         # Beacon mode
     connections/    # Mutual connections view
     discover/       # Discovery feed
-    onboarding/     # Profile setup + Claude title reveal
-    privacy/        # Privacy policy
-    profile/        # Profile view/edit
-    terms/          # Terms of service
-    waves/          # Waves (interest signals) view
-  components/       # Shared UI components
-  lib/              # Utilities (Supabase clients, Claude helpers, etc.)
-scripts/            # Dev utilities
-supabase/           # Database migrations
-ARCHITECTURE.md     # Full design spec and architecture decisions
+    join/           # Invite link handler
+    onboarding/     # 5-step profile setup
+    profile/        # Profile view + edit
+  components/       # Shared UI components (BottomNav)
+  lib/              # Supabase clients, constants
+supabase/
+  migrations/       # Database schema and policy migrations
 ```
-
-## Fork It for Your Own Meetup
-
-This project is designed to be forked and adapted for other events. Here's a quick guide:
-
-1. Fork the repo
-2. Update the branding — colors and theme are defined in `src/app/globals.css` under `@theme inline`
-3. Set up your own Supabase project and Anthropic API key
-4. Update the privacy policy and terms of service pages with your own event details
-5. Deploy to Vercel with `vercel deploy`
-
-See `CONTRIBUTING.md` for more details.
-
-## Architecture
-
-See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full design spec covering data model, AI integration, feature specifications, and design system.
 
 ## License
 
