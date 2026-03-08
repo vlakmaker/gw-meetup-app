@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateClaudeTitle } from "@/lib/claude";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -12,49 +11,37 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
-    name, role, tags, looking_for,
-    claude_md_snippet, cool_thing, mcp_servers_skills,
-    linkedin_url, share_email, discoverable,
+    name,
+    work_one_liner,
+    current_season,
+    discussion_topics,
+    hoping_for,
+    linkedin_url,
+    linkedin_public,
+    share_email,
+    meetup_id,
     photo_url,
   } = body;
 
-  // Basic validation
-  if (!name?.trim() || !role?.trim() || !tags?.length || !looking_for?.length) {
+  if (!name?.trim() || !current_season || !hoping_for || !meetup_id) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-  }
-
-  const primary_tag = tags[0] ?? null;
-
-  // Generate Claude title immediately
-  let claude_title: string | null = null;
-  try {
-    claude_title = await generateClaudeTitle({
-      role, tags, looking_for,
-      claude_md_snippet, cool_thing, mcp_servers_skills,
-    });
-  } catch {
-    // Non-fatal — title can be generated later
   }
 
   const { data: profile, error } = await supabase
     .from("profiles")
     .insert({
       id: user.id,
+      meetup_id,
       name: name.trim(),
-      role: role.trim().slice(0, 60),
-      tags,
-      looking_for,
-      primary_tag,
-      claude_title,
-      claude_title_regenerations: claude_title ? 1 : 0,
-      claude_md_snippet: claude_md_snippet?.trim().slice(0, 2000) || null,
-      cool_thing: cool_thing?.trim().slice(0, 280) || null,
-      mcp_servers_skills: mcp_servers_skills?.trim().slice(0, 500) || null,
+      work_one_liner: work_one_liner?.trim().slice(0, 80) || null,
+      current_season,
+      discussion_topics: discussion_topics || [],
+      hoping_for,
       linkedin_url: linkedin_url?.trim() || null,
+      linkedin_public: linkedin_public ?? false,
       share_email: share_email ?? false,
-      email: user.email ?? null,
-      discoverable: discoverable ?? true,
       photo_url: photo_url || null,
+      checked_in: false,
     })
     .select()
     .single();

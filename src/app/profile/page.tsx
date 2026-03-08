@@ -3,60 +3,40 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { TAG_COLORS, INTEREST_TAGS, LOOKING_FOR } from "@/lib/constants";
-import { TOTEMS, PIXEL_COLORS } from "@/lib/totems";
+import { CURRENT_SEASONS, HOPING_FOR } from "@/lib/constants";
 import BottomNav from "@/components/BottomNav";
 import imageCompression from "browser-image-compression";
 
 interface MyProfile {
   id: string;
   name: string;
-  role: string;
-  claude_title: string | null;
-  claude_title_regenerations: number;
-  tags: string[];
-  looking_for: string[];
+  work_one_liner: string | null;
+  current_season: string | null;
+  discussion_topics: string[];
+  hoping_for: string | null;
   photo_url: string | null;
-  primary_tag: string | null;
-  cool_thing: string | null;
-  mcp_servers_skills: string | null;
-  claude_md_snippet: string | null;
   linkedin_url: string | null;
+  linkedin_public: boolean;
   share_email: boolean;
-  discoverable: boolean;
-  beacon_totem: string | null;
-  beacon_color: string | null;
+  meetup_id: string | null;
 }
 
-function Avatar({
-  name,
-  photo_url,
-  primary_tag,
-  size = 80,
-}: {
+interface TopicOption {
+  id: string;
+  topic: string;
+}
+
+function Avatar({ name, photo_url, size = 80 }: {
   name: string;
   photo_url: string | null;
-  primary_tag: string | null;
   size?: number;
 }) {
-  const color = primary_tag ? TAG_COLORS[primary_tag] : null;
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   if (photo_url) {
     return (
-      <img
-        src={photo_url}
-        alt={name}
-        width={size}
-        height={size}
-        className="rounded-full object-cover"
-        style={{ width: size, height: size }}
-      />
+      <img src={photo_url} alt={name} width={size} height={size}
+        className="rounded-full object-cover" style={{ width: size, height: size }} />
     );
   }
 
@@ -64,11 +44,10 @@ function Avatar({
     <div
       className="rounded-full flex items-center justify-center font-mono font-bold"
       style={{
-        width: size,
-        height: size,
-        background: color ? `${color.bg}30` : "var(--bg-elevated)",
-        color: color ? color.bg : "var(--text-secondary)",
-        border: `2px solid ${color ? color.bg : "var(--border-subtle)"}`,
+        width: size, height: size,
+        background: "var(--bg-elevated)",
+        color: "var(--text-secondary)",
+        border: "2px solid var(--border-subtle)",
         fontSize: size * 0.3,
       }}
     >
@@ -77,64 +56,12 @@ function Avatar({
   );
 }
 
-function MiniTotem({
-  gridData,
-  color,
-  size,
-}: {
-  gridData: string[];
-  color: string;
-  size: number;
-}) {
-  const cols = gridData[0].length;
-  const rows = gridData.length;
-  const cell = Math.floor(size / Math.max(rows, cols));
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(${cols}, ${cell}px)`,
-        gridTemplateRows: `repeat(${rows}, ${cell}px)`,
-        gap: "1px",
-      }}
-    >
-      {gridData.flatMap((row, r) =>
-        row.split("").map((c, ci) => (
-          <div
-            key={`${r}-${ci}`}
-            style={{
-              width: cell,
-              height: cell,
-              borderRadius: 1,
-              background:
-                c === "0"
-                  ? "transparent"
-                  : c === "2"
-                    ? "var(--bg-primary)"
-                    : color,
-            }}
-          />
-        ))
-      )}
-    </div>
-  );
-}
-
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       onClick={() => onChange(!checked)}
       className="relative w-11 h-6 rounded-full transition-colors shrink-0"
-      style={{
-        background: checked ? "var(--accent-primary)" : "var(--bg-primary)",
-      }}
+      style={{ background: checked ? "var(--accent-primary)" : "var(--bg-primary)" }}
     >
       <span
         className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
@@ -149,19 +76,19 @@ export default function MyProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<MyProfile | null>(null);
+  const [topicOptions, setTopicOptions] = useState<TopicOption[]>([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Edit form state
+  // Edit state
   const [editName, setEditName] = useState("");
-  const [editRole, setEditRole] = useState("");
-  const [editTags, setEditTags] = useState<string[]>([]);
-  const [editLookingFor, setEditLookingFor] = useState<string[]>([]);
-  const [editCoolThing, setEditCoolThing] = useState("");
-  const [editMcp, setEditMcp] = useState("");
+  const [editOneliner, setEditOneliner] = useState("");
+  const [editSeason, setEditSeason] = useState("");
+  const [editTopics, setEditTopics] = useState<string[]>([]);
+  const [editHoping, setEditHoping] = useState("");
   const [editLinkedin, setEditLinkedin] = useState("");
+  const [editLinkedinPublic, setEditLinkedinPublic] = useState(false);
   const [editShareEmail, setEditShareEmail] = useState(false);
-  const [editDiscoverable, setEditDiscoverable] = useState(true);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -169,20 +96,26 @@ export default function MyProfilePage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) {
-        router.push("/auth/login");
-        return;
-      }
+      if (!user) { router.push("/auth/login"); return; }
+
       const { data } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, name, work_one_liner, current_season, discussion_topics, hoping_for, photo_url, linkedin_url, linkedin_public, share_email, meetup_id")
         .eq("id", user.id)
         .single();
-      if (!data) {
-        router.push("/onboarding");
-        return;
-      }
+
+      if (!data) { router.push("/onboarding"); return; }
       setProfile(data as MyProfile);
+
+      if (data.meetup_id) {
+        const { data: topics } = await supabase
+          .from("topic_options")
+          .select("id, topic")
+          .eq("meetup_id", data.meetup_id)
+          .order("topic");
+        setTopicOptions(topics || []);
+      }
+
       setLoading(false);
     });
   }, [router]);
@@ -190,14 +123,13 @@ export default function MyProfilePage() {
   const startEditing = () => {
     if (!profile) return;
     setEditName(profile.name);
-    setEditRole(profile.role);
-    setEditTags([...profile.tags]);
-    setEditLookingFor([...profile.looking_for]);
-    setEditCoolThing(profile.cool_thing || "");
-    setEditMcp(profile.mcp_servers_skills || "");
+    setEditOneliner(profile.work_one_liner || "");
+    setEditSeason(profile.current_season || "");
+    setEditTopics([...profile.discussion_topics]);
+    setEditHoping(profile.hoping_for || "");
     setEditLinkedin(profile.linkedin_url || "");
+    setEditLinkedinPublic(profile.linkedin_public);
     setEditShareEmail(profile.share_email);
-    setEditDiscoverable(profile.discoverable);
     setPhotoPreview(null);
     setPhotoFile(null);
     setEditing(true);
@@ -207,11 +139,7 @@ export default function MyProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.2,
-        maxWidthOrHeight: 400,
-        useWebWorker: true,
-      });
+      const compressed = await imageCompression(file, { maxSizeMB: 0.2, maxWidthOrHeight: 400, useWebWorker: true });
       setPhotoFile(compressed);
       setPhotoPreview(URL.createObjectURL(compressed));
     } catch {
@@ -220,23 +148,11 @@ export default function MyProfilePage() {
     }
   };
 
-  const toggleTag = (tag: string) => {
-    setEditTags((prev) =>
-      prev.includes(tag)
-        ? prev.filter((t) => t !== tag)
-        : prev.length < 5
-          ? [...prev, tag]
-          : prev
-    );
-  };
-
-  const toggleLookingFor = (item: string) => {
-    setEditLookingFor((prev) =>
-      prev.includes(item)
-        ? prev.filter((i) => i !== item)
-        : prev.length < 3
-          ? [...prev, item]
-          : prev
+  const toggleTopic = (topic: string) => {
+    setEditTopics((prev) =>
+      prev.includes(topic)
+        ? prev.filter((t) => t !== topic)
+        : prev.length < 3 ? [...prev, topic] : prev
     );
   };
 
@@ -248,10 +164,7 @@ export default function MyProfilePage() {
     if (photoFile) {
       const formData = new FormData();
       formData.append("file", photoFile);
-      const res = await fetch("/api/profile/photo", {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch("/api/profile/photo", { method: "POST", body: formData });
       if (res.ok) {
         const { url } = await res.json();
         newPhotoUrl = url;
@@ -265,15 +178,13 @@ export default function MyProfilePage() {
 
     const body = {
       name: editName.trim(),
-      role: editRole.trim().slice(0, 60),
-      tags: editTags,
-      looking_for: editLookingFor,
-      primary_tag: editTags[0] ?? null,
-      cool_thing: editCoolThing.trim().slice(0, 280) || null,
-      mcp_servers_skills: editMcp.trim().slice(0, 500) || null,
+      work_one_liner: editOneliner.trim().slice(0, 80) || null,
+      current_season: editSeason || null,
+      discussion_topics: editTopics,
+      hoping_for: editHoping || null,
       linkedin_url: editLinkedin.trim() || null,
+      linkedin_public: editLinkedinPublic,
       share_email: editShareEmail,
-      discoverable: editDiscoverable,
       photo_url: newPhotoUrl,
     };
 
@@ -297,51 +208,26 @@ export default function MyProfilePage() {
   if (loading) {
     return (
       <div className="min-h-dvh flex items-center justify-center">
-        <div
-          className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{
-            borderColor: "var(--accent-primary)",
-            borderTopColor: "transparent",
-          }}
-        />
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: "var(--accent-primary)", borderTopColor: "transparent" }} />
       </div>
     );
   }
 
   if (!profile) return null;
 
-  const primaryColor = profile.primary_tag ? TAG_COLORS[profile.primary_tag] : null;
-  const beaconTotem = profile.beacon_totem
-    ? TOTEMS.find((t) => t.id === profile.beacon_totem)
-    : null;
-  const beaconColor =
-    profile.beacon_color ||
-    PIXEL_COLORS[0].hex;
-
-  // ─── Edit Mode ───
+  // ── Edit Mode ──
   if (editing) {
-    const canSave =
-      editName.trim().length > 0 &&
-      editRole.trim().length > 0 &&
-      editTags.length >= 3 &&
-      editLookingFor.length >= 1;
+    const canSave = editName.trim().length > 0 && editSeason.length > 0 && editHoping.length > 0;
 
     return (
       <div className="min-h-dvh pb-28">
         <div className="px-4 pt-5 pb-3 flex items-center justify-between">
-          <button
-            onClick={() => setEditing(false)}
-            className="text-sm text-text-secondary"
-          >
-            Cancel
-          </button>
+          <button onClick={() => setEditing(false)} className="text-sm text-text-secondary">Cancel</button>
           <h1 className="font-mono text-lg font-bold">Edit Profile</h1>
-          <button
-            onClick={handleSave}
-            disabled={!canSave || saving}
+          <button onClick={handleSave} disabled={!canSave || saving}
             className="text-sm font-semibold disabled:opacity-40"
-            style={{ color: "var(--accent-primary)" }}
-          >
+            style={{ color: "var(--accent-primary)" }}>
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
@@ -349,206 +235,121 @@ export default function MyProfilePage() {
         <div className="px-4 space-y-5">
           {/* Photo */}
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => fileInputRef.current?.click()}
+            <button onClick={() => fileInputRef.current?.click()}
               className="w-20 h-20 rounded-full flex items-center justify-center text-2xl shrink-0 overflow-hidden transition-opacity hover:opacity-80"
               style={{
-                background:
-                  photoPreview || profile.photo_url
-                    ? "transparent"
-                    : "var(--bg-elevated)",
+                background: photoPreview || profile.photo_url ? "transparent" : "var(--bg-elevated)",
                 border: `2px dashed ${photoPreview || profile.photo_url ? "transparent" : "var(--border-hover)"}`,
-              }}
-            >
+              }}>
               {photoPreview || profile.photo_url ? (
-                <img
-                  src={photoPreview || profile.photo_url!}
-                  alt="Preview"
-                  className="w-full h-full object-cover rounded-full"
-                />
-              ) : (
-                "📷"
-              )}
+                <img src={photoPreview || profile.photo_url!} alt="Preview" className="w-full h-full object-cover rounded-full" />
+              ) : "📷"}
             </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="text-accent-primary text-sm font-medium"
-            >
+            <button onClick={() => fileInputRef.current?.click()} className="text-accent-primary text-sm font-medium">
               Change photo
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              className="hidden"
-            />
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
           </div>
-          {photoError && (
-            <p className="text-sm text-red-500 mt-1">{photoError}</p>
+          {photoError && <p className="text-sm text-red-500">{photoError}</p>}
+
+          {/* Name */}
+          <div>
+            <label className="text-sm text-text-secondary mb-1.5 block">Name</label>
+            <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+              className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent-primary transition-colors" />
+          </div>
+
+          {/* Work one-liner */}
+          <div>
+            <label className="text-sm text-text-secondary mb-1.5 block">What do you work on?</label>
+            <input type="text" value={editOneliner} onChange={(e) => setEditOneliner(e.target.value.slice(0, 80))}
+              className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent-primary transition-colors" />
+            <p className="text-text-secondary text-xs mt-1 text-right">{editOneliner.length}/80</p>
+          </div>
+
+          {/* Current season */}
+          <div>
+            <label className="text-sm text-text-secondary mb-2 block">Current season</label>
+            <div className="flex flex-col gap-2">
+              {CURRENT_SEASONS.map((s) => (
+                <button key={s.value} onClick={() => setEditSeason(s.value)}
+                  className="w-full px-4 py-3 rounded-xl text-left text-sm font-medium transition-all"
+                  style={{
+                    background: editSeason === s.value ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
+                    color: editSeason === s.value ? "var(--accent-primary)" : "var(--text-primary)",
+                    border: `1px solid ${editSeason === s.value ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                  }}>
+                  {s.emoji} {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Discussion topics */}
+          {topicOptions.length > 0 && (
+            <div>
+              <label className="text-sm text-text-secondary mb-2 block">Discussion topics (up to 3)</label>
+              <div className="flex flex-wrap gap-2">
+                {topicOptions.map((t) => {
+                  const active = editTopics.includes(t.topic);
+                  return (
+                    <button key={t.id} onClick={() => toggleTopic(t.topic)}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                      style={{
+                        background: active ? "var(--accent-primary)" : "var(--bg-elevated)",
+                        color: active ? "white" : "var(--text-secondary)",
+                        border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                      }}>
+                      {t.topic}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
-          {/* Name + Role */}
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm text-text-secondary mb-1.5 block">
-                Name
-              </label>
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent-primary transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-text-secondary mb-1.5 block">
-                Role
-              </label>
-              <input
-                type="text"
-                value={editRole}
-                onChange={(e) => setEditRole(e.target.value.slice(0, 60))}
-                className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent-primary transition-colors"
-              />
-              <p className="text-text-secondary text-xs mt-1 text-right">
-                {editRole.length}/60
-              </p>
-            </div>
-          </div>
-
-          {/* Tags */}
+          {/* Hoping for */}
           <div>
-            <label className="text-sm text-text-secondary mb-2 block">
-              Interests ({editTags.length}/5)
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {INTEREST_TAGS.map((tag) => {
-                const active = editTags.includes(tag);
-                const c = TAG_COLORS[tag];
-                return (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-                    style={{
-                      background: active ? c.bg : "var(--bg-elevated)",
-                      color: active ? c.text : "var(--text-secondary)",
-                      border: `1px solid ${active ? c.bg : "var(--border-subtle)"}`,
-                    }}
-                  >
-                    {tag}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Looking for */}
-          <div>
-            <label className="text-sm text-text-secondary mb-2 block">
-              Looking for ({editLookingFor.length}/3)
-            </label>
+            <label className="text-sm text-text-secondary mb-2 block">What are you hoping for?</label>
             <div className="flex flex-col gap-2">
-              {LOOKING_FOR.map((item) => {
-                const active = editLookingFor.includes(item);
-                return (
-                  <button
-                    key={item}
-                    onClick={() => toggleLookingFor(item)}
-                    className="w-full px-4 py-3 rounded-xl text-left text-sm font-medium transition-all"
-                    style={{
-                      background: active
-                        ? "rgba(220, 107, 47, 0.12)"
-                        : "var(--bg-elevated)",
-                      color: active
-                        ? "var(--accent-primary)"
-                        : "var(--text-primary)",
-                      border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
-                    }}
-                  >
-                    {item}
-                  </button>
-                );
-              })}
+              {HOPING_FOR.map((h) => (
+                <button key={h.value} onClick={() => setEditHoping(h.value)}
+                  className="w-full px-4 py-3 rounded-xl text-left text-sm font-medium transition-all"
+                  style={{
+                    background: editHoping === h.value ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
+                    color: editHoping === h.value ? "var(--accent-primary)" : "var(--text-primary)",
+                    border: `1px solid ${editHoping === h.value ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                  }}>
+                  {h.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Optional fields */}
+          {/* LinkedIn */}
           <div>
-            <label className="text-sm text-text-secondary mb-1.5 block">
-              Cool thing you&apos;ve built
-            </label>
-            <textarea
-              value={editCoolThing}
-              onChange={(e) => setEditCoolThing(e.target.value.slice(0, 280))}
-              rows={2}
-              className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent-primary transition-colors resize-none"
-            />
-            <p className="text-text-secondary text-xs mt-1 text-right">
-              {editCoolThing.length}/280
-            </p>
-          </div>
-
-          <div>
-            <label className="text-sm text-text-secondary mb-1.5 block">
-              MCP servers / Claude tools
-            </label>
-            <input
-              type="text"
-              value={editMcp}
-              onChange={(e) => setEditMcp(e.target.value.slice(0, 500))}
-              className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent-primary transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm text-text-secondary mb-1.5 block">
-              LinkedIn URL
-            </label>
-            <input
-              type="url"
-              value={editLinkedin}
-              onChange={(e) => setEditLinkedin(e.target.value)}
-              className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent-primary transition-colors"
-            />
+            <label className="text-sm text-text-secondary mb-1.5 block">LinkedIn URL</label>
+            <input type="url" value={editLinkedin} onChange={(e) => setEditLinkedin(e.target.value)}
+              className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent-primary transition-colors" />
           </div>
 
           {/* Toggles */}
-          <div
-            className="rounded-xl p-4 space-y-4"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border-subtle)",
-            }}
-          >
+          <div className="rounded-xl p-4 space-y-4"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="text-sm font-medium">LinkedIn visible to all</p>
+                <p className="text-xs text-text-secondary mt-0.5">Off = only visible on mutual wave</p>
+              </div>
+              <Toggle checked={editLinkedinPublic} onChange={setEditLinkedinPublic} />
+            </label>
+            <div className="h-px" style={{ background: "var(--border-subtle)" }} />
             <label className="flex items-center justify-between cursor-pointer">
               <div>
                 <p className="text-sm font-medium">Share email on match</p>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  Only visible to mutual matches
-                </p>
+                <p className="text-xs text-text-secondary mt-0.5">Only visible to mutual matches</p>
               </div>
-              <Toggle
-                checked={editShareEmail}
-                onChange={setEditShareEmail}
-              />
-            </label>
-            <div
-              className="h-px"
-              style={{ background: "var(--border-subtle)" }}
-            />
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <p className="text-sm font-medium">Appear in search</p>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  Let others find you by name
-                </p>
-              </div>
-              <Toggle
-                checked={editDiscoverable}
-                onChange={setEditDiscoverable}
-              />
+              <Toggle checked={editShareEmail} onChange={setEditShareEmail} />
             </label>
           </div>
         </div>
@@ -558,258 +359,91 @@ export default function MyProfilePage() {
     );
   }
 
-  // ─── View Mode ───
+  // ── View Mode ──
+  const season = CURRENT_SEASONS.find((s) => s.value === profile.current_season);
+  const hoping = HOPING_FOR.find((h) => h.value === profile.hoping_for);
+
   return (
     <div className="min-h-dvh pb-28">
-      {/* Header */}
       <div className="px-4 pt-5 pb-3 flex items-center justify-between">
-        <h1 className="font-mono text-xl font-bold">
-          <span style={{ color: "var(--accent-primary)" }}>My</span> Profile
-        </h1>
-        <button
-          onClick={startEditing}
+        <h1 className="font-mono text-xl font-bold">My Profile</h1>
+        <button onClick={startEditing}
           className="text-sm font-medium px-3 py-1.5 rounded-full transition-opacity hover:opacity-80"
-          style={{
-            background: "var(--bg-elevated)",
-            color: "var(--text-secondary)",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
+          style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}>
           Edit
         </button>
       </div>
 
       <div className="px-4 space-y-3">
-        {/* Hero card */}
-        <div
-          className="rounded-2xl p-5 flex flex-col items-center text-center gap-3 animate-fade-up"
-          style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <Avatar
-            name={profile.name}
-            photo_url={profile.photo_url}
-            primary_tag={profile.primary_tag}
-            size={88}
-          />
+        {/* Hero */}
+        <div className="rounded-2xl p-5 flex flex-col items-center text-center gap-3 animate-fade-up"
+          style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)" }}>
+          <Avatar name={profile.name} photo_url={profile.photo_url} size={88} />
           <div>
             <h2 className="font-semibold text-lg">{profile.name}</h2>
-            <p className="text-text-secondary text-sm">{profile.role}</p>
-            {profile.claude_title && (
-              <p
-                className="font-mono text-sm mt-1"
-                style={{ color: "var(--accent-primary)" }}
-              >
-                {profile.claude_title}
-              </p>
+            {profile.work_one_liner && (
+              <p className="text-text-secondary text-sm mt-1">{profile.work_one_liner}</p>
             )}
           </div>
         </div>
 
-        {/* Tags */}
-        <div
-          className="rounded-2xl p-4 animate-fade-up"
-          style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border-subtle)",
-            animationDelay: "50ms",
-            animationFillMode: "both",
-          }}
-        >
-          <p
-            className="font-mono text-xs font-bold mb-3"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            INTERESTS
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {profile.tags.map((tag) => {
-              const c = TAG_COLORS[tag];
-              return (
-                <span
-                  key={tag}
-                  className="text-xs px-3 py-1 rounded-full font-medium"
-                  style={{
-                    background: c ? `${c.bg}20` : "var(--bg-elevated)",
-                    color: c ? c.bg : "var(--text-secondary)",
-                  }}
-                >
-                  {tag}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Looking for */}
-        <div
-          className="rounded-2xl p-4 animate-fade-up"
-          style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border-subtle)",
-            animationDelay: "100ms",
-            animationFillMode: "both",
-          }}
-        >
-          <p
-            className="font-mono text-xs font-bold mb-3"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            LOOKING FOR
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {profile.looking_for.map((item) => (
-              <span
-                key={item}
-                className="text-xs px-3 py-1 rounded-full font-medium"
-                style={{
-                  background: "var(--bg-elevated)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                {item}
+        {/* Season + hoping for */}
+        {(season || hoping) && (
+          <div className="rounded-2xl p-4 flex flex-wrap gap-2 animate-fade-up"
+            style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)", animationDelay: "50ms", animationFillMode: "both" }}>
+            {season && (
+              <span className="text-xs px-3 py-1 rounded-full font-medium"
+                style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                {season.emoji} {season.label}
               </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Cool thing */}
-        {profile.cool_thing && (
-          <div
-            className="rounded-2xl p-4 animate-fade-up"
-            style={{
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border-subtle)",
-              animationDelay: "150ms",
-              animationFillMode: "both",
-            }}
-          >
-            <p
-              className="font-mono text-xs font-bold mb-2"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              COOL THING I BUILT
-            </p>
-            <p className="text-sm leading-relaxed">{profile.cool_thing}</p>
+            )}
+            {hoping && (
+              <span className="text-xs px-3 py-1 rounded-full font-medium"
+                style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                Looking for: {hoping.label}
+              </span>
+            )}
           </div>
         )}
 
-        {/* MCP servers */}
-        {profile.mcp_servers_skills && (
-          <div
-            className="rounded-2xl p-4 animate-fade-up"
-            style={{
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border-subtle)",
-              animationDelay: "200ms",
-              animationFillMode: "both",
-            }}
-          >
-            <p
-              className="font-mono text-xs font-bold mb-2"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              MCP SERVERS & TOOLS
-            </p>
-            <p className="text-sm font-mono leading-relaxed text-text-secondary">
-              {profile.mcp_servers_skills}
-            </p>
-          </div>
-        )}
-
-        {/* Beacon totem */}
-        {beaconTotem && (
-          <div
-            className="rounded-2xl p-4 animate-fade-up"
-            style={{
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border-subtle)",
-              animationDelay: "250ms",
-              animationFillMode: "both",
-            }}
-          >
-            <p
-              className="font-mono text-xs font-bold mb-3"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              BEACON TOTEM
-            </p>
-            <div className="flex items-center gap-4">
-              <div
-                className="rounded-xl p-2"
-                style={{ background: "var(--bg-primary)" }}
-              >
-                <MiniTotem
-                  gridData={beaconTotem.grid}
-                  color={beaconColor}
-                  size={48}
-                />
-              </div>
-              <div>
-                <p className="font-mono text-sm font-bold">{beaconTotem.name}</p>
-                <p className="text-text-secondary text-xs mt-0.5">
-                  Your pixel identity
-                </p>
-              </div>
+        {/* Discussion topics */}
+        {profile.discussion_topics.length > 0 && (
+          <div className="rounded-2xl p-4 animate-fade-up"
+            style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)", animationDelay: "100ms", animationFillMode: "both" }}>
+            <p className="font-mono text-xs font-bold mb-3" style={{ color: "var(--text-secondary)" }}>DISCUSSION TOPICS</p>
+            <div className="flex flex-wrap gap-2">
+              {profile.discussion_topics.map((topic) => (
+                <span key={topic} className="text-xs px-3 py-1 rounded-full font-medium"
+                  style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                  {topic}
+                </span>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Settings summary */}
-        <div
-          className="rounded-2xl p-4 animate-fade-up"
-          style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border-subtle)",
-            animationDelay: "300ms",
-            animationFillMode: "both",
-          }}
-        >
-          <p
-            className="font-mono text-xs font-bold mb-3"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            SETTINGS
-          </p>
+        {/* Settings */}
+        <div className="rounded-2xl p-4 animate-fade-up"
+          style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)", animationDelay: "150ms", animationFillMode: "both" }}>
+          <p className="font-mono text-xs font-bold mb-3" style={{ color: "var(--text-secondary)" }}>SETTINGS</p>
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-sm">Share email on match</span>
-              <span
-                className="text-xs font-mono"
-                style={{
-                  color: profile.share_email
-                    ? "var(--accent-success)"
-                    : "var(--text-secondary)",
-                }}
-              >
-                {profile.share_email ? "ON" : "OFF"}
+              <span className="text-sm">LinkedIn visibility</span>
+              <span className="text-xs font-mono" style={{ color: profile.linkedin_public ? "var(--accent-success)" : "var(--text-secondary)" }}>
+                {profile.linkedin_public ? "PUBLIC" : "MUTUAL ONLY"}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm">Appear in search</span>
-              <span
-                className="text-xs font-mono"
-                style={{
-                  color: profile.discoverable
-                    ? "var(--accent-success)"
-                    : "var(--text-secondary)",
-                }}
-              >
-                {profile.discoverable ? "ON" : "OFF"}
+              <span className="text-sm">Share email on match</span>
+              <span className="text-xs font-mono" style={{ color: profile.share_email ? "var(--accent-success)" : "var(--text-secondary)" }}>
+                {profile.share_email ? "ON" : "OFF"}
               </span>
             </div>
             {profile.linkedin_url && (
               <div className="flex items-center justify-between">
                 <span className="text-sm">LinkedIn</span>
-                <a
-                  href={profile.linkedin_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-mono truncate max-w-[180px]"
-                  style={{ color: "var(--accent-primary)" }}
-                >
+                <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-mono truncate max-w-[180px]" style={{ color: "var(--accent-primary)" }}>
                   Linked →
                 </a>
               </div>
@@ -818,17 +452,9 @@ export default function MyProfilePage() {
         </div>
 
         {/* Sign out */}
-        <button
-          onClick={handleSignOut}
+        <button onClick={handleSignOut}
           className="w-full py-3 rounded-xl text-sm font-medium transition-opacity hover:opacity-80 animate-fade-up"
-          style={{
-            background: "var(--bg-elevated)",
-            color: "var(--text-secondary)",
-            border: "1px solid var(--border-subtle)",
-            animationDelay: "350ms",
-            animationFillMode: "both",
-          }}
-        >
+          style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)", animationDelay: "200ms", animationFillMode: "both" }}>
           Sign out
         </button>
       </div>

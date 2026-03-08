@@ -1,50 +1,17 @@
-export const INTEREST_TAGS = [
-  "MCP Servers",
-  "Multi-Agent Workflows",
-  "Claude Code",
-  "Prompt Engineering",
-  "Web Development",
-  "Mobile Development",
-  "Data & Analytics",
-  "DevOps & Infrastructure",
-  "AI Products",
-  "Open Source",
-  "Startups & Indie Hacking",
-  "Enterprise AI",
-  "Design & UX",
-  "Backend Systems",
-  "Machine Learning",
-  "Automation & Scripting",
-  "Developer Tools",
-  "Education & Teaching",
-] as const;
+// Current season options — maps DB value to display label
+export const CURRENT_SEASONS: { value: string; label: string; emoji: string }[] = [
+  { value: "in_transition",      label: "In transition",           emoji: "🔄" },
+  { value: "building_something", label: "Building something new",  emoji: "🔨" },
+  { value: "exploring_ideas",    label: "Exploring ideas",         emoji: "🧭" },
+  { value: "looking_for_role",   label: "Looking for a new role",  emoji: "🔍" },
+  { value: "growing_in_role",    label: "Growing in my current role", emoji: "📈" },
+  { value: "taking_a_break",     label: "Taking a break",          emoji: "☀️" },
+];
 
-export const LOOKING_FOR = [
-  "Collaborators on a project",
-  "Learning from experts",
-  "Sharing what I've built",
-  "Job opportunities",
-  "Co-founders",
-  "Just vibing & meeting people",
-] as const;
-
-export const TAG_COLORS: Record<string, { bg: string; text: string; glow: string }> = {
-  "MCP Servers":              { bg: "#7C3AED", text: "#FFFFFF", glow: "#7C3AED" },
-  "Multi-Agent Workflows":    { bg: "#0891B2", text: "#FFFFFF", glow: "#0891B2" },
-  "Claude Code":              { bg: "#DC6B2F", text: "#FFFFFF", glow: "#DC6B2F" },
-  "Prompt Engineering":       { bg: "#059669", text: "#FFFFFF", glow: "#059669" },
-  "Web Development":          { bg: "#2563EB", text: "#FFFFFF", glow: "#2563EB" },
-  "Mobile Development":       { bg: "#D946EF", text: "#FFFFFF", glow: "#D946EF" },
-  "Data & Analytics":         { bg: "#0D9488", text: "#FFFFFF", glow: "#0D9488" },
-  "DevOps & Infrastructure":  { bg: "#475569", text: "#FFFFFF", glow: "#475569" },
-  "AI Products":              { bg: "#E11D48", text: "#FFFFFF", glow: "#E11D48" },
-  "Open Source":              { bg: "#16A34A", text: "#FFFFFF", glow: "#16A34A" },
-  "Startups & Indie Hacking": { bg: "#F59E0B", text: "#000000", glow: "#F59E0B" },
-  "Enterprise AI":            { bg: "#1E3A5F", text: "#FFFFFF", glow: "#1E3A5F" },
-  "Design & UX":              { bg: "#EC4899", text: "#FFFFFF", glow: "#EC4899" },
-  "Backend Systems":          { bg: "#6366F1", text: "#FFFFFF", glow: "#6366F1" },
-  "Machine Learning":         { bg: "#8B5CF6", text: "#FFFFFF", glow: "#8B5CF6" },
-  "Automation & Scripting":   { bg: "#78716C", text: "#FFFFFF", glow: "#78716C" },
-  "Developer Tools":          { bg: "#0EA5E9", text: "#FFFFFF", glow: "#0EA5E9" },
-  "Education & Teaching":     { bg: "#A3E635", text: "#000000", glow: "#A3E635" },
-};
+// Hoping for options — maps DB value to display label
+export const HOPING_FOR: { value: string; label: string; description: string }[] = [
+  { value: "collaborator",     label: "A collaborator",       description: "Someone to build or work on something with" },
+  { value: "new_perspective",  label: "A new perspective",    description: "Ideas or angles I haven't considered" },
+  { value: "advice",           label: "Advice",               description: "Guidance from someone who's been there" },
+  { value: "good_conversation", label: "Just good conversation", description: "No agenda — just interesting people" },
+];

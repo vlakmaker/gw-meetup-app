@@ -3,58 +3,85 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { INTEREST_TAGS, LOOKING_FOR, TAG_COLORS } from "@/lib/constants";
+import { CURRENT_SEASONS, HOPING_FOR } from "@/lib/constants";
 import imageCompression from "browser-image-compression";
+
+interface TopicOption {
+  id: string;
+  label: string;
+  display_order: number;
+}
 
 export default function OnboardingPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Redirect users who already have a profile
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { router.push("/auth/login"); return; }
-      supabase.from("profiles").select("id").eq("id", user.id).single()
-        .then(({ data }) => { if (data) router.push("/discover"); });
-    });
-  }, [router]);
-
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Meetup context (set by /join/[code] and stored in localStorage)
+  const [meetupId, setMeetupId] = useState<string | null>(null);
+  const [meetupName, setMeetupName] = useState<string>("");
+  const [topicOptions, setTopicOptions] = useState<TopicOption[]>([]);
+
   // Form state
   const [name, setName] = useState("");
-  const [role, setRole] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedLookingFor, setSelectedLookingFor] = useState<string[]>([]);
-  const [claudeMd, setClaudeMd] = useState("");
-  const [coolThing, setCoolThing] = useState("");
-  const [aiProfileMode, setAiProfileMode] = useState<"claude_md" | "prompt">("claude_md");
-  const [copied, setCopied] = useState(false);
+  const [workOneLiner, setWorkOneLiner] = useState("");
+  const [currentSeason, setCurrentSeason] = useState<string | null>(null);
+  const [discussionTopics, setDiscussionTopics] = useState<string[]>([]);
+  const [hopingFor, setHopingFor] = useState<string | null>(null);
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [linkedinPublic, setLinkedinPublic] = useState(false);
   const [shareEmail, setShareEmail] = useState(false);
-  const [discoverable, setDiscoverable] = useState(true);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
 
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag)
-        ? prev.filter((t) => t !== tag)
-        : prev.length < 5
-        ? [...prev, tag]
-        : prev
-    );
-  };
+  // On mount: check auth, load meetup context, load topic options
+  useEffect(() => {
+    const supabase = createClient();
 
-  const toggleLookingFor = (item: string) => {
-    setSelectedLookingFor((prev) =>
-      prev.includes(item)
-        ? prev.filter((i) => i !== item)
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { router.push("/auth/login"); return; }
+
+      // Check if profile already exists → skip onboarding
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+      if (profile) { router.push("/discover"); return; }
+
+      // Load meetup from localStorage (set by /join/[code])
+      const storedMeetupId = localStorage.getItem("gw_meetup_id");
+      const storedMeetupName = localStorage.getItem("gw_meetup_name");
+
+      if (!storedMeetupId) {
+        // No meetup context — can't proceed
+        setError("No meetup found. Please use the invite link from your host.");
+        return;
+      }
+
+      setMeetupId(storedMeetupId);
+      setMeetupName(storedMeetupName || "your meetup");
+
+      // Load topic options for this meetup
+      const { data: topics } = await supabase
+        .from("topic_options")
+        .select("id, label, display_order")
+        .eq("meetup_id", storedMeetupId)
+        .order("display_order");
+
+      setTopicOptions(topics || []);
+    });
+  }, [router]);
+
+  const toggleTopic = (label: string) => {
+    setDiscussionTopics((prev) =>
+      prev.includes(label)
+        ? prev.filter((t) => t !== label)
         : prev.length < 3
-        ? [...prev, item]
+        ? [...prev, label]
         : prev
     );
   };
@@ -62,7 +89,6 @@ export default function OnboardingPage() {
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       const compressed = await imageCompression(file, {
         maxSizeMB: 0.2,
@@ -88,17 +114,14 @@ export default function OnboardingPage() {
   };
 
   const handleSubmit = async () => {
+    if (!meetupId || !currentSeason || !hopingFor) return;
     setLoading(true);
     setError(null);
 
     try {
-      // Check auth
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/auth/login");
-        return;
-      }
+      if (!user) { router.push("/auth/login"); return; }
 
       const photo_url = await uploadPhoto();
 
@@ -106,14 +129,15 @@ export default function OnboardingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name, role, tags: selectedTags,
-          looking_for: selectedLookingFor,
-          claude_md_snippet: claudeMd || null,
-          cool_thing: coolThing || null,
-          mcp_servers_skills: null,
+          name,
+          work_one_liner: workOneLiner,
+          current_season: currentSeason,
+          discussion_topics: discussionTopics,
+          hoping_for: hopingFor,
           linkedin_url: linkedinUrl || null,
+          linkedin_public: linkedinPublic,
           share_email: shareEmail,
-          discoverable,
+          meetup_id: meetupId,
           photo_url,
         }),
       });
@@ -124,12 +148,11 @@ export default function OnboardingPage() {
         return;
       }
 
-      const profile = await res.json();
+      // Clear meetup context from localStorage — it's saved in the profile now
+      localStorage.removeItem("gw_meetup_id");
+      localStorage.removeItem("gw_meetup_name");
 
-      // Fire-and-forget match computation — don't await
-      fetch("/api/matching/compute", { method: "POST" }).catch(() => {});
-
-      router.push(`/onboarding/title?title=${encodeURIComponent(profile.claude_title || "")}`);
+      router.push("/discover");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -137,30 +160,47 @@ export default function OnboardingPage() {
     }
   };
 
-  const canProceedStep1 = name.trim().length > 0 && role.trim().length > 0;
-  const canProceedStep2 = selectedTags.length >= 3;
-  const canProceedStep3 = selectedLookingFor.length >= 1;
+  const TOTAL_STEPS = 5;
+  const canProceedStep1 = name.trim().length > 0;
+  const canProceedStep2 = workOneLiner.trim().length > 0;
+  const canProceedStep3 = currentSeason !== null;
+  const canProceedStep4 = discussionTopics.length >= 1;
+  const canProceedStep5 = hopingFor !== null;
+
+  // No meetup context error
+  if (error && !meetupId) {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center px-6 py-8 text-center">
+        <p className="text-4xl mb-4">🔗</p>
+        <h1 className="font-mono text-xl font-bold mb-2">Missing invite link</h1>
+        <p className="text-text-secondary text-sm">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-dvh flex flex-col px-6 py-8">
       {/* Progress bar */}
-      <div className="flex gap-1.5 mb-8">
-        {[1, 2, 3, 4].map((s) => (
+      <div className="flex gap-1.5 mb-2">
+        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
           <div
-            key={s}
+            key={i}
             className="h-1 flex-1 rounded-full transition-colors duration-300"
-            style={{ background: s <= step ? "var(--accent-primary)" : "var(--border-subtle)" }}
+            style={{ background: i < step ? "var(--accent-primary)" : "var(--border-subtle)" }}
           />
         ))}
       </div>
 
-      {/* Step 1: Basic info */}
+      {meetupName && (
+        <p className="text-text-secondary text-xs mb-6">{meetupName}</p>
+      )}
+
+      {/* Step 1: Name + photo */}
       {step === 1 && (
         <div className="flex flex-col flex-1 animate-fade-up">
           <h1 className="font-mono text-2xl font-bold mb-1">Who are you?</h1>
-          <p className="text-text-secondary text-sm mb-8">The basics, nothing fancy</p>
+          <p className="text-text-secondary text-sm mb-8">Just the basics</p>
 
-          {/* Photo upload */}
           <div className="flex items-center gap-4 mb-6">
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -170,52 +210,29 @@ export default function OnboardingPage() {
                 border: `2px dashed ${photoPreview ? "transparent" : "var(--border-hover)"}`,
               }}
             >
-              {photoPreview ? (
-                <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                "📷"
-              )}
+              {photoPreview
+                ? <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                : "📷"
+              }
             </button>
             <div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="text-accent-primary text-sm font-medium"
-              >
+              <button onClick={() => fileInputRef.current?.click()} className="text-accent-primary text-sm font-medium">
                 {photoPreview ? "Change photo" : "Add photo"}
               </button>
               <p className="text-text-secondary text-xs mt-0.5">Optional</p>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              className="hidden"
-            />
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm text-text-secondary mb-1.5 block">Name *</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Alex Chen"
-                className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-text-secondary mb-1.5 block">What do you do? *</label>
-              <input
-                type="text"
-                value={role}
-                onChange={(e) => setRole(e.target.value.slice(0, 60))}
-                placeholder="PM at Grab, ML Engineer, Indie Hacker..."
-                className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
-              />
-              <p className="text-text-secondary text-xs mt-1 text-right">{role.length}/60</p>
-            </div>
+          <div>
+            <label className="text-sm text-text-secondary mb-1.5 block">Your name *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Alana"
+              className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
+            />
           </div>
 
           <div className="mt-auto pt-8">
@@ -230,41 +247,25 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* Step 2: Tags */}
+      {/* Step 2: Work one-liner */}
       {step === 2 && (
         <div className="flex flex-col flex-1 animate-fade-up">
-          <h1 className="font-mono text-2xl font-bold mb-1">What&apos;s your thing?</h1>
-          <p className="text-text-secondary text-sm mb-6">
-            Pick 3–5 tags · {selectedTags.length}/5 selected
-          </p>
+          <h1 className="font-mono text-2xl font-bold mb-1">What do you do?</h1>
+          <p className="text-text-secondary text-sm mb-8">One sentence — make it human, not your CV</p>
 
-          <div className="flex flex-wrap gap-2 mb-auto">
-            {INTEREST_TAGS.map((tag) => {
-              const active = selectedTags.includes(tag);
-              const color = TAG_COLORS[tag];
-              return (
-                <button
-                  key={tag}
-                  onClick={() => toggleTag(tag)}
-                  className="px-3 py-1.5 rounded-full text-sm font-medium transition-all"
-                  style={{
-                    background: active ? color.bg : "var(--bg-elevated)",
-                    color: active ? color.text : "var(--text-secondary)",
-                    border: `1px solid ${active ? color.bg : "var(--border-subtle)"}`,
-                    boxShadow: active ? `0 0 12px ${color.glow}40` : "none",
-                  }}
-                >
-                  {tag}
-                </button>
-              );
-            })}
+          <div>
+            <input
+              type="text"
+              value={workOneLiner}
+              onChange={(e) => setWorkOneLiner(e.target.value.slice(0, 80))}
+              placeholder="Building AI tools for climate, figuring out the rest"
+              className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors"
+            />
+            <p className="text-text-secondary text-xs mt-1 text-right">{workOneLiner.length}/80</p>
           </div>
 
-          <div className="mt-8 flex gap-3">
-            <button
-              onClick={() => setStep(1)}
-              className="flex-1 py-4 bg-bg-elevated text-text-secondary font-semibold rounded-2xl"
-            >
+          <div className="mt-auto pt-8 flex gap-3">
+            <button onClick={() => setStep(1)} className="flex-1 py-4 bg-bg-elevated text-text-secondary font-semibold rounded-2xl">
               Back
             </button>
             <button
@@ -278,39 +279,35 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* Step 3: Looking for */}
+      {/* Step 3: Current season */}
       {step === 3 && (
         <div className="flex flex-col flex-1 animate-fade-up">
-          <h1 className="font-mono text-2xl font-bold mb-1">What are you here for?</h1>
-          <p className="text-text-secondary text-sm mb-6">
-            Pick 1–3 · {selectedLookingFor.length}/3 selected
-          </p>
+          <h1 className="font-mono text-2xl font-bold mb-1">What season are you in?</h1>
+          <p className="text-text-secondary text-sm mb-6">Pick the one that feels most true right now</p>
 
           <div className="flex flex-col gap-3 mb-auto">
-            {LOOKING_FOR.map((item) => {
-              const active = selectedLookingFor.includes(item);
+            {CURRENT_SEASONS.map((s) => {
+              const active = currentSeason === s.value;
               return (
                 <button
-                  key={item}
-                  onClick={() => toggleLookingFor(item)}
-                  className="w-full px-4 py-3.5 rounded-xl text-left font-medium transition-all"
+                  key={s.value}
+                  onClick={() => setCurrentSeason(s.value)}
+                  className="w-full px-4 py-3.5 rounded-xl text-left flex items-center gap-3 font-medium transition-all"
                   style={{
                     background: active ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
                     color: active ? "var(--accent-primary)" : "var(--text-primary)",
                     border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
                   }}
                 >
-                  {item}
+                  <span className="text-xl">{s.emoji}</span>
+                  {s.label}
                 </button>
               );
             })}
           </div>
 
           <div className="mt-8 flex gap-3">
-            <button
-              onClick={() => setStep(2)}
-              className="flex-1 py-4 bg-bg-elevated text-text-secondary font-semibold rounded-2xl"
-            >
+            <button onClick={() => setStep(2)} className="flex-1 py-4 bg-bg-elevated text-text-secondary font-semibold rounded-2xl">
               Back
             </button>
             <button
@@ -324,109 +321,85 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* Step 4: Optional extras + submit */}
+      {/* Step 4: Discussion topics */}
       {step === 4 && (
         <div className="flex flex-col flex-1 animate-fade-up">
-          <h1 className="font-mono text-2xl font-bold mb-1">The good stuff</h1>
+          <h1 className="font-mono text-2xl font-bold mb-1">What do you want to talk about?</h1>
           <p className="text-text-secondary text-sm mb-6">
-            All optional — but better matches if you fill these in
+            Pick up to 3 · {discussionTopics.length}/3 selected
           </p>
 
-          <div className="space-y-4 mb-auto">
-            <div>
-              <label className="text-sm text-text-secondary mb-1.5 block">
-                Cool thing you&apos;ve built
-              </label>
-              <textarea
-                value={coolThing}
-                onChange={(e) => setCoolThing(e.target.value.slice(0, 280))}
-                placeholder="An MCP server that controls my coffee machine..."
-                rows={2}
-                className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors resize-none"
-              />
-              <p className="text-text-secondary text-xs mt-1 text-right">{coolThing.length}/280</p>
-            </div>
-
-            <div>
-              <label className="text-sm text-text-secondary mb-2 block">
-                How do you build with AI?
-              </label>
-              <p className="text-xs text-text-secondary mb-3">
-                Help us understand your vibe so we can match you better
-              </p>
-
-              {/* Toggle between modes */}
-              <div className="flex gap-2 mb-3">
-                <button
-                  onClick={() => setAiProfileMode("claude_md")}
-                  className="flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all"
-                  style={{
-                    background: aiProfileMode === "claude_md" ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
-                    color: aiProfileMode === "claude_md" ? "var(--accent-primary)" : "var(--text-secondary)",
-                    border: `1px solid ${aiProfileMode === "claude_md" ? "var(--accent-primary)" : "var(--border-subtle)"}`,
-                  }}
-                >
-                  Paste your CLAUDE.md
-                </button>
-                <button
-                  onClick={() => setAiProfileMode("prompt")}
-                  className="flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all"
-                  style={{
-                    background: aiProfileMode === "prompt" ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
-                    color: aiProfileMode === "prompt" ? "var(--accent-primary)" : "var(--text-secondary)",
-                    border: `1px solid ${aiProfileMode === "prompt" ? "var(--accent-primary)" : "var(--border-subtle)"}`,
-                  }}
-                >
-                  Ask your AI agent
-                </button>
-              </div>
-
-              {aiProfileMode === "claude_md" ? (
-                <div>
-                  <textarea
-                    value={claudeMd}
-                    onChange={(e) => setClaudeMd(e.target.value.slice(0, 2000))}
-                    placeholder="Paste a section of your CLAUDE.md or project instructions..."
-                    rows={3}
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors resize-none font-mono text-xs"
-                  />
-                  <p className="text-text-secondary text-xs mt-1 text-right">{claudeMd.length}/2000</p>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-xs text-text-secondary mb-2">
-                    Copy this prompt, paste it into your AI agent (Claude, ChatGPT, Cursor, etc.), then paste the response below:
-                  </p>
-                  <div
-                    className="relative rounded-lg p-3 mb-3 font-mono text-xs cursor-pointer group"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        "Given our past working style, how would you describe our working relationship in terms of building software together? Focus on: what I tend to build, how I like to work, my technical strengths, and what kind of collaborator I am. Keep it under 2000 characters."
-                      );
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
+          {topicOptions.length === 0 ? (
+            <p className="text-text-secondary text-sm">No topics set for this meetup yet. You can continue.</p>
+          ) : (
+            <div className="flex flex-col gap-3 mb-auto">
+              {topicOptions.map((topic) => {
+                const active = discussionTopics.includes(topic.label);
+                return (
+                  <button
+                    key={topic.id}
+                    onClick={() => toggleTopic(topic.label)}
+                    className="w-full px-4 py-3.5 rounded-xl text-left font-medium transition-all"
+                    style={{
+                      background: active ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
+                      color: active ? "var(--accent-primary)" : "var(--text-primary)",
+                      border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
                     }}
                   >
-                    <p className="text-text-secondary pr-8 leading-relaxed">
-                      &quot;Given our past working style, how would you describe our working relationship in terms of building software together? Focus on: what I tend to build, how I like to work, my technical strengths, and what kind of collaborator I am. Keep it under 2000 characters.&quot;
-                    </p>
-                    <span className="absolute top-2 right-2 text-text-secondary group-hover:text-accent-primary transition-colors">
-                      {copied ? "Copied!" : "Copy"}
-                    </span>
-                  </div>
-                  <textarea
-                    value={claudeMd}
-                    onChange={(e) => setClaudeMd(e.target.value.slice(0, 2000))}
-                    placeholder="Paste your AI agent's response here..."
-                    rows={3}
-                    className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle rounded-xl text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-primary transition-colors resize-none font-mono text-xs"
-                  />
-                  <p className="text-text-secondary text-xs mt-1 text-right">{claudeMd.length}/2000</p>
-                </div>
-              )}
+                    {topic.label}
+                  </button>
+                );
+              })}
             </div>
+          )}
 
+          <div className="mt-8 flex gap-3">
+            <button onClick={() => setStep(3)} className="flex-1 py-4 bg-bg-elevated text-text-secondary font-semibold rounded-2xl">
+              Back
+            </button>
+            <button
+              onClick={() => setStep(5)}
+              disabled={!canProceedStep4 && topicOptions.length > 0}
+              className="flex-[2] py-4 bg-accent-primary text-white font-semibold rounded-2xl disabled:opacity-40 transition-opacity"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: Hoping for + LinkedIn */}
+      {step === 5 && (
+        <div className="flex flex-col flex-1 animate-fade-up">
+          <h1 className="font-mono text-2xl font-bold mb-1">What are you hoping for?</h1>
+          <p className="text-text-secondary text-sm mb-6">Pick what resonates most tonight</p>
+
+          <div className="flex flex-col gap-3 mb-6">
+            {HOPING_FOR.map((h) => {
+              const active = hopingFor === h.value;
+              return (
+                <button
+                  key={h.value}
+                  onClick={() => setHopingFor(h.value)}
+                  className="w-full px-4 py-3.5 rounded-xl text-left transition-all"
+                  style={{
+                    background: active ? "rgba(220, 107, 47, 0.12)" : "var(--bg-elevated)",
+                    border: `1px solid ${active ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                  }}
+                >
+                  <p className="font-medium" style={{ color: active ? "var(--accent-primary)" : "var(--text-primary)" }}>
+                    {h.label}
+                  </p>
+                  <p className="text-xs text-text-secondary mt-0.5">{h.description}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            className="rounded-xl p-4 space-y-4 mb-6"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}
+          >
             <div>
               <label className="text-sm text-text-secondary mb-1.5 block">LinkedIn URL</label>
               <input
@@ -438,52 +411,46 @@ export default function OnboardingPage() {
               />
             </div>
 
-            {/* Toggles */}
-            <div
-              className="rounded-xl p-4 space-y-4"
-              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}
-            >
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <p className="text-sm font-medium">Share email on match</p>
-                  <p className="text-xs text-text-secondary mt-0.5">
-                    Only visible to mutual matches
-                  </p>
-                </div>
-                <Toggle checked={shareEmail} onChange={setShareEmail} />
-              </label>
+            {linkedinUrl && (
+              <>
+                <div className="h-px" style={{ background: "var(--border-subtle)" }} />
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <p className="text-sm font-medium">Make LinkedIn public</p>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      {linkedinPublic
+                        ? "Visible to everyone at the meetup"
+                        : "Only revealed after a mutual wave"}
+                    </p>
+                  </div>
+                  <Toggle checked={linkedinPublic} onChange={setLinkedinPublic} />
+                </label>
+              </>
+            )}
 
-              <div className="h-px" style={{ background: "var(--border-subtle)" }} />
+            <div className="h-px" style={{ background: "var(--border-subtle)" }} />
 
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <p className="text-sm font-medium">Appear in search</p>
-                  <p className="text-xs text-text-secondary mt-0.5">
-                    Let others find you by name
-                  </p>
-                </div>
-                <Toggle checked={discoverable} onChange={setDiscoverable} />
-              </label>
-            </div>
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="text-sm font-medium">Share email on connection</p>
+                <p className="text-xs text-text-secondary mt-0.5">Only shown after a mutual wave</p>
+              </div>
+              <Toggle checked={shareEmail} onChange={setShareEmail} />
+            </label>
           </div>
 
-          {error && (
-            <p className="text-red-400 text-sm mt-4 text-center">{error}</p>
-          )}
+          {error && <p className="text-red-400 text-sm mb-4 text-center">{error}</p>}
 
-          <div className="mt-8 flex gap-3">
-            <button
-              onClick={() => setStep(3)}
-              className="flex-1 py-4 bg-bg-elevated text-text-secondary font-semibold rounded-2xl"
-            >
+          <div className="mt-auto flex gap-3">
+            <button onClick={() => setStep(4)} className="flex-1 py-4 bg-bg-elevated text-text-secondary font-semibold rounded-2xl">
               Back
             </button>
             <button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || !canProceedStep5}
               className="flex-[2] py-4 bg-accent-primary text-white font-semibold rounded-2xl disabled:opacity-50 transition-opacity"
             >
-              {loading ? "Creating profile..." : "Get my Claude Title ✨"}
+              {loading ? "Saving..." : "I'm ready 👋"}
             </button>
           </div>
         </div>
@@ -492,13 +459,7 @@ export default function OnboardingPage() {
   );
 }
 
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       onClick={() => onChange(!checked)}

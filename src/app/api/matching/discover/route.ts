@@ -3,75 +3,67 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Get current user's profile to find meetup + check-in status
+  const { data: myProfile } = await supabase
+    .from("profiles")
+    .select("meetup_id, checked_in")
+    .eq("id", user.id)
+    .single();
+
+  if (!myProfile?.meetup_id) {
+    return NextResponse.json({ profiles: [], total: 0, checkedIn: false });
+  }
+
+  if (!myProfile.checked_in) {
+    return NextResponse.json({ profiles: [], total: 0, checkedIn: false });
+  }
+
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
-  const offset = parseInt(searchParams.get("offset") || "0");
-  const tagFilter = searchParams.get("tag");
+  const topicFilter = searchParams.get("topic");
   const search = searchParams.get("search")?.toLowerCase().trim();
 
-  // Fetch matches where current user is user_a or user_b
+  // Fetch matches for this user within this meetup
   const { data: matches } = await supabase
     .from("matches")
-    .select(`
-      score,
-      match_reason,
-      conversation_starter,
-      user_a,
-      user_b
-    `)
-    .or(`user_a.eq.${user.id},user_b.eq.${user.id})`)
+    .select("score, match_reason, conversation_starter, user_a, user_b")
+    .eq("meetup_id", myProfile.meetup_id)
+    .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
     .order("score", { ascending: false });
 
   if (!matches || matches.length === 0) {
-    return NextResponse.json({ profiles: [], total: 0 });
+    return NextResponse.json({ profiles: [], total: 0, checkedIn: true });
   }
 
-  // Get the other user's ID for each match
+  // Get the partner user IDs
   const otherUserIds = matches.map((m) =>
     m.user_a === user.id ? m.user_b : m.user_a
   );
 
-  // Fetch those profiles
+  // Fetch those profiles (checked-in only, same meetup)
   let profileQuery = supabase
     .from("profiles")
-    .select("id, name, role, tags, looking_for, claude_title, photo_url, primary_tag, is_beacon_active, beacon_activated_at, beacon_totem, beacon_color")
-    .in("id", otherUserIds);
-
-  if (tagFilter) {
-    profileQuery = profileQuery.contains("tags", [tagFilter]);
-  }
+    .select("id, name, work_one_liner, current_season, discussion_topics, hoping_for, photo_url, linkedin_url, linkedin_public")
+    .in("id", otherUserIds)
+    .eq("meetup_id", myProfile.meetup_id)
+    .eq("checked_in", true);
 
   if (search) {
-    profileQuery = profileQuery
-      .eq("discoverable", true)
-      .ilike("name", `%${search}%`);
+    profileQuery = profileQuery.ilike("name", `%${search}%`);
   }
 
   const { data: profiles } = await profileQuery;
 
   if (!profiles) {
-    return NextResponse.json({ profiles: [], total: 0 });
+    return NextResponse.json({ profiles: [], total: 0, checkedIn: true });
   }
 
-  // Strip stale beacon status (>10 min old)
-  const beaconCutoff = Date.now() - 10 * 60 * 1000;
-  for (const p of profiles) {
-    if (p.is_beacon_active && p.beacon_activated_at) {
-      if (new Date(p.beacon_activated_at).getTime() < beaconCutoff) {
-        p.is_beacon_active = false;
-      }
-    }
-  }
-
-  // Merge match data back onto profiles, sort by score
+  // Build match map
   const matchMap = new Map(
     matches.map((m) => [
       m.user_a === user.id ? m.user_b : m.user_a,
@@ -79,12 +71,20 @@ export async function GET(request: Request) {
     ])
   );
 
-  const enriched = profiles
-    .map((p) => ({ ...p, ...(matchMap.get(p.id) || { score: 0, match_reason: "", conversation_starter: "" }) }))
+  // Enrich and sort by score
+  let enriched = profiles
+    .map((p) => ({
+      ...p,
+      ...(matchMap.get(p.id) || { score: 0, match_reason: "", conversation_starter: "" }),
+    }))
     .sort((a, b) => b.score - a.score);
 
-  const total = enriched.length;
-  const paginated = enriched.slice(offset, offset + limit);
+  // Apply topic filter client-friendly (filter by topic in discussion_topics array)
+  if (topicFilter) {
+    enriched = enriched.filter((p) =>
+      Array.isArray(p.discussion_topics) && p.discussion_topics.includes(topicFilter)
+    );
+  }
 
-  return NextResponse.json({ profiles: paginated, total });
+  return NextResponse.json({ profiles: enriched, total: enriched.length, checkedIn: true });
 }

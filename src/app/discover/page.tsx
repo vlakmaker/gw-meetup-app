@@ -3,141 +3,124 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { INTEREST_TAGS } from "@/lib/constants";
-import ProfileCard from "@/components/ProfileCard";
+import GWProfileCard from "@/components/GWProfileCard";
 import BottomNav from "@/components/BottomNav";
-import NuxWalkthrough from "@/components/NuxWalkthrough";
-import LiveBeaconsFeed from "@/components/LiveBeaconsFeed";
 
-interface DiscoverProfile {
+interface GWProfile {
   id: string;
   name: string;
-  role: string;
-  claude_title: string | null;
-  tags: string[];
+  work_one_liner: string | null;
+  current_season: string | null;
+  discussion_topics: string[];
+  hoping_for: string | null;
   photo_url: string | null;
-  primary_tag: string | null;
-  is_beacon_active: boolean;
-  beacon_totem: string | null;
-  beacon_color: string | null;
-  match_score: number;
+  score: number;
   match_reason: string;
   conversation_starter: string;
 }
 
-const PAGE_SIZE = 20;
+interface TopicOption {
+  id: string;
+  topic: string;
+}
 
 export default function DiscoverPage() {
   const router = useRouter();
-  const [profiles, setProfiles] = useState<DiscoverProfile[]>([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
+  const [profiles, setProfiles] = useState<GWProfile[]>([]);
+  const [topics, setTopics] = useState<TopicOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [topicFilter, setTopicFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [wavedIds, setWavedIds] = useState<Set<string>>(new Set());
-  const [randomProfile, setRandomProfile] = useState<DiscoverProfile | null>(null);
-  const [showRandom, setShowRandom] = useState(false);
-  const [computing, setComputing] = useState(false);
+  const [checkedIn, setCheckedIn] = useState<boolean | null>(null);
 
-  // Auth + profile guard
+  // Auth guard + load profile + meetup topics
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/auth/login"); return; }
-      supabase.from("profiles").select("id").eq("id", user.id).single()
-        .then(({ data }) => { if (!data) router.push("/onboarding"); });
-    });
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, meetup_id, checked_in")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile) { router.push("/onboarding"); return; }
+
+      setCheckedIn(profile.checked_in);
+
+      // Load topic options for this meetup
+      if (profile.meetup_id) {
+        const { data: topicData } = await supabase
+          .from("topic_options")
+          .select("id, topic")
+          .eq("meetup_id", profile.meetup_id)
+          .order("topic");
+        setTopics(topicData || []);
+      }
+    };
+
+    init();
   }, [router]);
 
-  // Load existing sent waves so cards show correct state
+  // Load sent waves so cards show correct state
   useEffect(() => {
     fetch("/api/waves?type=sent")
       .then((r) => r.json())
       .then((waves) => {
         if (Array.isArray(waves)) {
-          setWavedIds(new Set(waves.map((w: { to_user_profile?: { id: string } }) => w.to_user_profile?.id).filter((id): id is string => Boolean(id))));
+          setWavedIds(
+            new Set(
+              waves
+                .map((w: { to_user_profile?: { id: string } }) => w.to_user_profile?.id)
+                .filter((id): id is string => Boolean(id))
+            )
+          );
         }
       })
       .catch(() => {});
   }, []);
 
-  const fetchProfiles = useCallback(async (reset = false) => {
-    const currentOffset = reset ? 0 : offset;
-    if (reset) setLoading(true); else setLoadingMore(true);
+  const fetchProfiles = useCallback(async () => {
+    if (checkedIn === null) return; // wait for init to complete
+    if (!checkedIn) { setLoading(false); return; }
 
+    setLoading(true);
     try {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        offset: String(currentOffset),
-      });
-      if (tagFilter) params.set("tag", tagFilter);
+      const params = new URLSearchParams();
+      if (topicFilter) params.set("topic", topicFilter);
       if (search) params.set("search", search);
 
       const res = await fetch(`/api/matching/discover?${params}`);
-      const { profiles: raw, total: t } = await res.json();
-      // Rename `score` → `match_score` to match ProfileCard props
-      const fetched = (raw || []).map((p: DiscoverProfile & { score?: number }) => ({
-        ...p,
-        match_score: p.score ?? p.match_score ?? 0,
-      }));
+      const { profiles: raw, checkedIn: ci } = await res.json();
 
-      if (reset) {
-        setProfiles(fetched || []);
-        setOffset(PAGE_SIZE);
-      } else {
-        setProfiles((prev) => [...prev, ...(fetched || [])]);
-        setOffset((o) => o + PAGE_SIZE);
-      }
-      setTotal(t || 0);
+      if (!ci) setCheckedIn(false);
+      setProfiles(raw || []);
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
-  }, [offset, tagFilter, search]);
+  }, [checkedIn, topicFilter, search]);
 
-  // Initial load + refetch on filter/search change
   useEffect(() => {
-    fetchProfiles(true);
+    fetchProfiles();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tagFilter, search]);
+  }, [topicFilter, search, checkedIn]);
 
   const handleWave = async (toUserId: string) => {
     setWavedIds((prev) => new Set([...prev, toUserId]));
     try {
-      const res = await fetch("/api/waves", {
+      await fetch("/api/waves", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to_user: toUserId }),
       });
-      if (res.ok) {
-        const { mutual } = await res.json();
-        if (mutual) {
-          // Could show a celebration — for now just keep in waved state
-        }
-      }
     } catch {
       // Optimistic — keep waved state regardless
     }
-  };
-
-  const handleRandomMatch = async () => {
-    setShowRandom(true);
-    setRandomProfile(null);
-    const res = await fetch("/api/matching/random");
-    const { profile, match_reason, conversation_starter } = await res.json();
-    if (profile) {
-      setRandomProfile({ ...profile, match_score: 0, match_reason, conversation_starter });
-    }
-  };
-
-  const handleRecompute = async () => {
-    setComputing(true);
-    await fetch("/api/matching/compute", { method: "POST" });
-    setComputing(false);
-    fetchProfiles(true);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -145,24 +128,13 @@ export default function DiscoverPage() {
     setSearch(searchInput);
   };
 
-  const hasMore = profiles.length < total;
+  const highlightTopics = topicFilter ? [topicFilter] : [];
 
   return (
     <div className="min-h-dvh pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 px-4 pt-4 pb-3" style={{ background: "var(--bg-primary)" }}>
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="font-mono text-xl font-bold">
-            <span style={{ color: "var(--accent-primary)" }}>Claude</span> Connect
-          </h1>
-          <button
-            onClick={handleRandomMatch}
-            className="text-xs font-medium px-3 py-1.5 rounded-full transition-opacity hover:opacity-80"
-            style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
-          >
-            🎲 Random
-          </button>
-        </div>
+        <h1 className="font-mono text-xl font-bold mb-3">Discover</h1>
 
         {/* Search */}
         <form onSubmit={handleSearch} className="relative mb-3">
@@ -184,117 +156,106 @@ export default function DiscoverPage() {
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary text-sm">🔍</span>
         </form>
 
-        {/* Tag filter */}
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          <button
-            onClick={() => setTagFilter(null)}
-            className="shrink-0 text-xs px-3 py-1 rounded-full font-medium transition-colors"
-            style={{
-              background: !tagFilter ? "var(--accent-primary)" : "var(--bg-elevated)",
-              color: !tagFilter ? "white" : "var(--text-secondary)",
-            }}
-          >
-            All
-          </button>
-          {INTEREST_TAGS.map((tag) => (
+        {/* Topic filter pills */}
+        {topics.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             <button
-              key={tag}
-              onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+              onClick={() => setTopicFilter(null)}
               className="shrink-0 text-xs px-3 py-1 rounded-full font-medium transition-colors"
               style={{
-                background: tagFilter === tag ? "var(--accent-primary)" : "var(--bg-elevated)",
-                color: tagFilter === tag ? "white" : "var(--text-secondary)",
+                background: !topicFilter ? "var(--accent-primary)" : "var(--bg-elevated)",
+                color: !topicFilter ? "white" : "var(--text-secondary)",
               }}
             >
-              {tag}
+              All
             </button>
-          ))}
-        </div>
+            {topics.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTopicFilter(topicFilter === t.topic ? null : t.topic)}
+                className="shrink-0 text-xs px-3 py-1 rounded-full font-medium transition-colors"
+                style={{
+                  background: topicFilter === t.topic ? "var(--accent-primary)" : "var(--bg-elevated)",
+                  color: topicFilter === t.topic ? "white" : "var(--text-secondary)",
+                }}
+              >
+                {t.topic}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="px-4 space-y-3">
-        {/* Live Beacons */}
-        <LiveBeaconsFeed />
-
-        {/* Random match overlay */}
-        {showRandom && (
+        {/* Check-in gate */}
+        {checkedIn === false && (
           <div
-            className="rounded-2xl p-4 mb-2"
-            style={{ background: "var(--bg-elevated)", border: "1px solid var(--accent-secondary)" }}
+            className="rounded-2xl p-6 text-center flex flex-col items-center gap-3 mt-4"
+            style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)" }}
           >
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-mono text-accent-secondary font-bold">🎲 WILDCARD MATCH</p>
-              <button onClick={() => setShowRandom(false)} className="text-text-secondary text-sm">✕</button>
-            </div>
-            {randomProfile ? (
-              <ProfileCard
-                {...randomProfile}
-                onWave={handleWave}
-                waved={wavedIds.has(randomProfile.id)}
-              />
-            ) : (
-              <p className="text-text-secondary text-sm text-center py-4">Finding someone interesting…</p>
-            )}
+            <p className="text-4xl">⏳</p>
+            <h2 className="font-mono font-bold text-base">Not checked in yet</h2>
+            <p className="text-text-secondary text-sm max-w-[280px]">
+              Your host will check you in when the event starts. Matches will appear here once you&apos;re in.
+            </p>
           </div>
         )}
 
-        {/* Loading state */}
-        {loading && (
+        {/* Loading */}
+        {loading && checkedIn !== false && (
           <div className="flex flex-col items-center py-16 gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--accent-primary)", borderTopColor: "transparent" }} />
+            <div
+              className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+              style={{ borderColor: "var(--accent-primary)", borderTopColor: "transparent" }}
+            />
             <p className="text-text-secondary text-sm">Finding your matches…</p>
           </div>
         )}
 
-        {/* No matches yet */}
-        {!loading && profiles.length === 0 && (
-          <div className="flex flex-col items-center py-16 gap-4 text-center">
+        {/* No matches */}
+        {!loading && checkedIn && profiles.length === 0 && (
+          <div className="flex flex-col items-center py-16 gap-4 text-center mt-4">
             <p className="text-4xl">🔭</p>
             <p className="font-mono font-bold">
-              {search || tagFilter ? "No matches found" : "No matches yet"}
+              {search || topicFilter ? "No matches found" : "No matches yet"}
             </p>
             <p className="text-text-secondary text-sm max-w-[260px]">
-              {search || tagFilter
+              {search || topicFilter
                 ? "Try a different filter or search term"
-                : "More matches appear as other attendees register. Check back soon!"}
+                : "Matches appear once your host runs the matching. Check back soon!"}
             </p>
-            {!search && !tagFilter && (
-              <button
-                onClick={handleRecompute}
-                disabled={computing}
-                className="text-sm px-4 py-2 rounded-xl font-medium disabled:opacity-50"
-                style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
-              >
-                {computing ? "Computing…" : "Refresh matches"}
-              </button>
-            )}
           </div>
         )}
 
+        {/* Topic grouping label */}
+        {!loading && checkedIn && profiles.length > 0 && topicFilter && (
+          <p className="text-xs font-mono font-bold pt-1" style={{ color: "var(--text-secondary)" }}>
+            {profiles.length} {profiles.length === 1 ? "person" : "people"} talking about &ldquo;{topicFilter}&rdquo;
+          </p>
+        )}
+
         {/* Profile cards */}
-        {!loading && profiles.map((p, i) => (
-          <ProfileCard
+        {!loading && checkedIn && profiles.map((p, i) => (
+          <GWProfileCard
             key={p.id}
-            {...p}
+            id={p.id}
+            name={p.name}
+            work_one_liner={p.work_one_liner}
+            current_season={p.current_season}
+            discussion_topics={p.discussion_topics}
+            hoping_for={p.hoping_for}
+            photo_url={p.photo_url}
+            match_score={p.score}
+            match_reason={p.match_reason}
+            conversation_starter={p.conversation_starter}
             onWave={handleWave}
             waved={wavedIds.has(p.id)}
             animationDelay={i * 40}
+            highlightTopics={highlightTopics}
           />
         ))}
-
-        {/* Load more */}
-        {hasMore && !loading && (
-          <button
-            onClick={() => fetchProfiles(false)}
-            disabled={loadingMore}
-            className="w-full py-3 text-sm text-text-secondary disabled:opacity-50"
-          >
-            {loadingMore ? "Loading…" : "Load more"}
-          </button>
-        )}
       </div>
 
-      <NuxWalkthrough />
       <BottomNav />
     </div>
   );

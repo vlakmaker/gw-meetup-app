@@ -4,11 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 type RawProfile = {
   id: string;
   name: string;
-  role: string;
-  claude_title: string | null;
+  work_one_liner: string | null;
+  discussion_topics: string[];
   photo_url: string | null;
-  primary_tag: string | null;
-  tags: string[];
   linkedin_url: string | null;
   share_email: boolean;
   email: string | null;
@@ -28,8 +26,8 @@ export async function GET() {
     .from("connections")
     .select(
       `id, connected_at,
-       profile_a:profiles!connections_user_a_fkey(id, name, role, claude_title, photo_url, primary_tag, tags, linkedin_url, share_email, email),
-       profile_b:profiles!connections_user_b_fkey(id, name, role, claude_title, photo_url, primary_tag, tags, linkedin_url, share_email, email)`
+       profile_a:profiles!connections_user_a_fkey(id, name, work_one_liner, discussion_topics, photo_url, linkedin_url, share_email, email),
+       profile_b:profiles!connections_user_b_fkey(id, name, work_one_liner, discussion_topics, photo_url, linkedin_url, share_email, email)`
     )
     .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
     .order("connected_at", { ascending: false });
@@ -52,7 +50,6 @@ export async function GET() {
       connected_at: c.connected_at,
       other: {
         ...other,
-        // Only expose email if they opted in
         email: other.share_email ? other.email : null,
       },
     };
