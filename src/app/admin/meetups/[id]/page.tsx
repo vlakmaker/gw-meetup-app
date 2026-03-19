@@ -167,6 +167,17 @@ export default function MeetupAdminPage() {
       setParticipants((prev) =>
         prev.map((p) => p.id === participantId ? { ...p, checked_in: !current } : p)
       );
+
+      // Auto-match when checking IN (not when unchecking)
+      if (!current) {
+        fetch("/api/admin/match-meetup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ meetup_id: meetupId, user_id: participantId }),
+        }).catch(() => {
+          // Matching failed silently — admin can manually re-run later
+        });
+      }
     }
   };
 
@@ -355,6 +366,9 @@ export default function MeetupAdminPage() {
         title={`Participants (${participants.length})`}
         subtitle={`${checkedInCount} checked in`}
       >
+        <p className="text-text-secondary text-xs mb-3">
+          Checking someone in automatically matches them with everyone already here.
+        </p>
         {participants.length === 0 ? (
           <p className="text-text-secondary text-sm">No one has registered yet.</p>
         ) : (

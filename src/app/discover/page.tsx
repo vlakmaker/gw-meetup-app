@@ -138,7 +138,8 @@ export default function DiscoverPage() {
     <div className="min-h-dvh pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 px-4 pt-4 pb-3" style={{ background: "var(--bg-primary)" }}>
-        <h1 className="font-mono text-xl font-bold mb-3">Discover</h1>
+        <h1 className="font-mono text-xl font-bold mb-1">Discover</h1>
+        <p className="text-text-secondary text-xs mb-3">New matches appear as more people arrive. Refresh to see updates!</p>
 
         {/* Mode toggle */}
         <div className="flex gap-2 mb-3">

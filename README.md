@@ -6,7 +6,7 @@ An AI-powered networking app for Generalist World meetups. Attendees build a pro
 
 ## Features
 
-- **AI-Powered Matching** — Claude scores attendee compatibility based on discussion topics, current season, and what they're hoping for
+- **AI-Powered Matching** — Gemini Flash scores attendee compatibility based on discussion topics, current season, and what they're hoping for. Matching happens automatically when each attendee is checked in — no need to wait for everyone to arrive
 - **Guided Onboarding** — 5-step profile setup: name, work one-liner, current season, discussion topics, intentions + LinkedIn. Returning attendees get a 2-step version (topics + intentions only) — their name, photo, and work one-liner carry over automatically
 - **Discover Feed** — Browse top matches ranked by score, with match reasons and conversation starters
 - **Waves & Connections** — Send a wave to signal interest; mutual waves unlock LinkedIn and create a connection
@@ -22,7 +22,7 @@ An AI-powered networking app for Generalist World meetups. Attendees build a pro
 | Language | TypeScript |
 | Styling | Tailwind CSS 4 |
 | Database | Supabase (Postgres + Auth + Storage) |
-| AI | Anthropic Claude API (match scoring) |
+| AI | Google Gemini Flash (match scoring), Anthropic Claude (title generation) |
 | Hosting | Vercel |
 
 ## Getting Started
@@ -31,7 +31,8 @@ An AI-powered networking app for Generalist World meetups. Attendees build a pro
 
 - Node.js 18+
 - A [Supabase](https://supabase.com) project
-- An [Anthropic API key](https://console.anthropic.com)
+- An [Anthropic API key](https://console.anthropic.com) (for title generation)
+- A [Gemini API key](https://aistudio.google.com/apikeys) (for match scoring)
 
 ### Setup
 
@@ -56,7 +57,8 @@ An AI-powered networking app for Generalist World meetups. Attendees build a pro
    | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
    | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
-   | `ANTHROPIC_API_KEY` | Your Anthropic API key |
+   | `ANTHROPIC_API_KEY` | Your Anthropic API key (title generation) |
+   | `GEMINI_API_KEY` | Your Gemini API key (match scoring) |
    | `NEXT_PUBLIC_APP_URL` | Your app URL (`http://localhost:3000` for local dev) |
 
 4. **Set up the database:**
@@ -76,7 +78,7 @@ An AI-powered networking app for Generalist World meetups. Attendees build a pro
 1. Go to `/admin` → create a meetup with a name, date, and invite code
 2. Add discussion topics and conversation starters
 3. Share the `/join/[code]` invite link with attendees before the event
-4. On the day: check in attendees as they arrive, then run AI matching
+4. On the day: check in attendees as they arrive — AI matching runs automatically per check-in. A manual "Run matching" button is also available to re-score all pairs
 5. Optionally add co-admins by email so co-hosts can help manage
 
 ### Attendee flow
