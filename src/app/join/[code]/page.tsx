@@ -44,10 +44,13 @@ export default function JoinPage() {
           .single();
 
         if (profile?.meetup_id === meetup.id) {
-          // Already registered for this meetup
+          // Already registered for this exact meetup
           router.push("/discover");
+        } else if (profile) {
+          // Has a profile from a previous meetup → short re-onboarding (topics + hoping for only)
+          router.push("/onboarding?returning=true");
         } else {
-          // Logged in but no profile → go to onboarding
+          // Brand new user → full onboarding
           router.push("/onboarding");
         }
       } else {
