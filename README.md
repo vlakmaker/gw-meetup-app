@@ -22,7 +22,7 @@ An AI-powered networking app for Generalist World meetups. Attendees build a pro
 | Language | TypeScript |
 | Styling | Tailwind CSS 4 |
 | Database | Supabase (Postgres + Auth + Storage) |
-| AI | Google Gemini Flash (match scoring), Anthropic Claude (title generation) |
+| AI | Google Gemini Flash (match scoring) |
 | Hosting | Vercel |
 
 ## Getting Started
@@ -31,8 +31,7 @@ An AI-powered networking app for Generalist World meetups. Attendees build a pro
 
 - Node.js 18+
 - A [Supabase](https://supabase.com) project
-- An [Anthropic API key](https://console.anthropic.com) (for title generation)
-- A [Gemini API key](https://aistudio.google.com/apikeys) (for match scoring)
+- A [Gemini API key](https://aistudio.google.com/apikeys) (for AI match scoring)
 
 ### Setup
 
@@ -57,7 +56,6 @@ An AI-powered networking app for Generalist World meetups. Attendees build a pro
    | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
    | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
-   | `ANTHROPIC_API_KEY` | Your Anthropic API key (title generation) |
    | `GEMINI_API_KEY` | Your Gemini API key (match scoring) |
    | `NEXT_PUBLIC_APP_URL` | Your app URL (`http://localhost:3000` for local dev) |
 
