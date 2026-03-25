@@ -7,6 +7,24 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const next = searchParams.get("next");
 
+  // Meetup context threaded from /join/[code] → /auth/login → here
+  const meetupId = searchParams.get("meetup_id");
+  const meetupName = searchParams.get("meetup_name");
+  const inviteCode = searchParams.get("invite_code");
+
+  // Helper: build a query string that forwards meetup context to the destination
+  const buildMeetupQS = (extra?: Record<string, string>) => {
+    const params = new URLSearchParams();
+    if (meetupId) params.set("meetup_id", meetupId);
+    if (meetupName) params.set("meetup_name", meetupName);
+    if (inviteCode) params.set("invite_code", inviteCode);
+    if (extra) {
+      for (const [k, v] of Object.entries(extra)) params.set(k, v);
+    }
+    const qs = params.toString();
+    return qs ? `?${qs}` : "";
+  };
+
   if (code) {
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -30,7 +48,13 @@ export async function GET(request: NextRequest) {
 
     if (!error) {
       // If a specific destination was requested (e.g. /admin), go there
-      if (next && next.startsWith("/")) {
+      if (next && next.startsWith("/") && !next.startsWith("//")) {
+        const meetupQS = buildMeetupQS();
+        if (meetupQS) {
+          // Append meetup params to the destination URL
+          const separator = next.includes("?") ? "&" : "?";
+          return NextResponse.redirect(`${origin}${next}${separator}${meetupQS.slice(1)}`);
+        }
         return NextResponse.redirect(`${origin}${next}`);
       }
 
@@ -39,11 +63,23 @@ export async function GET(request: NextRequest) {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("id")
+          .select("id, meetup_id")
           .eq("id", user.id)
           .maybeSingle();
 
-        return NextResponse.redirect(`${origin}${profile ? "/discover" : "/onboarding"}`);
+        if (profile) {
+          // User has a profile — check if it's for the same meetup
+          if (meetupId && profile.meetup_id !== meetupId) {
+            // Returning user joining a different meetup → re-onboarding
+            return NextResponse.redirect(
+              `${origin}/onboarding${buildMeetupQS({ returning: "true" })}`
+            );
+          }
+          return NextResponse.redirect(`${origin}/discover`);
+        }
+
+        // No profile → onboarding with meetup context
+        return NextResponse.redirect(`${origin}/onboarding${buildMeetupQS()}`);
       }
     }
   }

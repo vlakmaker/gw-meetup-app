@@ -35,6 +35,16 @@ export default function JoinPage() {
       // Check if user is already logged in
       const { data: { user } } = await supabase.auth.getUser();
 
+      // Build query string to thread meetup context through the auth flow.
+      // This ensures the meetup context survives even if the magic-link email
+      // opens in a different browser (e.g. in-app email browser) where
+      // localStorage from the original browser is unavailable.
+      const meetupParams = new URLSearchParams({
+        meetup_id: meetup.id,
+        meetup_name: meetup.name,
+        invite_code: code,
+      }).toString();
+
       if (user) {
         // Check if they already have a profile for this meetup
         const { data: profile } = await supabase
@@ -48,14 +58,14 @@ export default function JoinPage() {
           router.push("/discover");
         } else if (profile) {
           // Has a profile from a previous meetup → short re-onboarding (topics + hoping for only)
-          router.push("/onboarding?returning=true");
+          router.push(`/onboarding?returning=true&${meetupParams}`);
         } else {
           // Brand new user → full onboarding
-          router.push("/onboarding");
+          router.push(`/onboarding?${meetupParams}`);
         }
       } else {
         // Not logged in → go to login, then onboarding
-        router.push("/auth/login");
+        router.push(`/auth/login?${meetupParams}`);
       }
     };
 

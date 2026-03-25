@@ -61,23 +61,53 @@ export default function OnboardingPage() {
       // Returning users are expected to have a profile, so we let them through
       if (profile && !returning) { router.push("/discover"); return; }
 
-      // Load meetup from localStorage (set by /join/[code])
-      const storedMeetupId = localStorage.getItem("gw_meetup_id");
-      const storedMeetupName = localStorage.getItem("gw_meetup_name");
+      // Resolve meetup context: URL params → localStorage → invite_code re-lookup
+      const urlMeetupId = params.get("meetup_id");
+      const urlMeetupName = params.get("meetup_name");
+      const urlInviteCode = params.get("invite_code");
 
-      if (!storedMeetupId) {
+      let resolvedMeetupId = urlMeetupId;
+      let resolvedMeetupName = urlMeetupName;
+
+      // Fall back to localStorage if URL params are missing
+      if (!resolvedMeetupId) {
+        try {
+          resolvedMeetupId = localStorage.getItem("gw_meetup_id");
+          resolvedMeetupName = resolvedMeetupName || localStorage.getItem("gw_meetup_name");
+        } catch { /* localStorage unavailable */ }
+      }
+
+      // Last resort: re-lookup meetup from invite code
+      if (!resolvedMeetupId && urlInviteCode) {
+        try {
+          const res = await fetch(`/api/meetup/lookup?code=${encodeURIComponent(urlInviteCode)}`);
+          const { meetup } = await res.json();
+          if (meetup) {
+            resolvedMeetupId = meetup.id;
+            resolvedMeetupName = meetup.name;
+          }
+        } catch { /* lookup failed — will show error below */ }
+      }
+
+      if (!resolvedMeetupId) {
         setError("No meetup found. Please use the invite link from your host.");
         return;
       }
 
-      setMeetupId(storedMeetupId);
-      setMeetupName(storedMeetupName || "your meetup");
+      // Sync to localStorage so subsequent same-browser navigation works
+      try {
+        localStorage.setItem("gw_meetup_id", resolvedMeetupId);
+        if (resolvedMeetupName) localStorage.setItem("gw_meetup_name", resolvedMeetupName);
+      } catch { /* localStorage unavailable */ }
+
+      setMeetupId(resolvedMeetupId);
+      setMeetupName(resolvedMeetupName || "your meetup");
 
       // Load topic options for this meetup
       const { data: topics } = await supabase
         .from("topic_options")
         .select("id, label, display_order")
-        .eq("meetup_id", storedMeetupId)
+        .eq("meetup_id", resolvedMeetupId)
         .order("display_order");
 
       setTopicOptions(topics || []);

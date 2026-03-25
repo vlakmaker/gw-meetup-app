@@ -30,6 +30,10 @@ export default function LoginPage() {
   const [cooldown, setCooldown] = useState(0);
   // Where to send the user after login (e.g. /admin if they came from there)
   const [nextUrl, setNextUrl] = useState("");
+  // Meetup context threaded via URL params from /join/[code]
+  const [meetupId, setMeetupId] = useState("");
+  const [meetupName, setMeetupName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
 
   // Restore cooldown from localStorage on mount so page refreshes don't reset it
   useEffect(() => {
@@ -40,12 +44,32 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Read the ?next= param from the URL on mount (avoids useSearchParams + Suspense)
+  // Read URL params on mount: ?next=, ?meetup_id=, ?meetup_name=, ?invite_code=
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const next = params.get("next");
     // Only allow relative paths to prevent open-redirect attacks
-    if (next && next.startsWith("/")) setNextUrl(next);
+    if (next && next.startsWith("/") && !next.startsWith("//")) setNextUrl(next);
+
+    // Meetup context — read from URL params first, then fall back to localStorage
+    const urlMeetupId = params.get("meetup_id") || "";
+    const urlMeetupName = params.get("meetup_name") || "";
+    const urlInviteCode = params.get("invite_code") || "";
+
+    const effectiveMeetupId = urlMeetupId || (() => { try { return localStorage.getItem("gw_meetup_id") || ""; } catch { return ""; } })();
+    const effectiveMeetupName = urlMeetupName || (() => { try { return localStorage.getItem("gw_meetup_name") || ""; } catch { return ""; } })();
+
+    setMeetupId(effectiveMeetupId);
+    setMeetupName(effectiveMeetupName);
+    setInviteCode(urlInviteCode);
+
+    // Write to localStorage so same-browser navigation keeps working
+    if (effectiveMeetupId) {
+      try {
+        localStorage.setItem("gw_meetup_id", effectiveMeetupId);
+        if (effectiveMeetupName) localStorage.setItem("gw_meetup_name", effectiveMeetupName);
+      } catch { /* localStorage unavailable */ }
+    }
   }, []);
 
   useEffect(() => {
@@ -54,10 +78,16 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  // Build the callback URL, carrying next along so the callback page knows where to redirect
+  // Build the callback URL, carrying next + meetup context so the callback page knows where to redirect
   const callbackUrl = () => {
     const base = `${window.location.origin}/auth/callback`;
-    return nextUrl ? `${base}?next=${encodeURIComponent(nextUrl)}` : base;
+    const params = new URLSearchParams();
+    if (nextUrl) params.set("next", nextUrl);
+    if (meetupId) params.set("meetup_id", meetupId);
+    if (meetupName) params.set("meetup_name", meetupName);
+    if (inviteCode) params.set("invite_code", inviteCode);
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
   };
 
   const handleGoogleOAuth = async () => {
@@ -138,7 +168,41 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.push(nextUrl || "/discover");
+
+    // After dev-login, decide where to go (mirrors callback route logic)
+    if (nextUrl) {
+      router.push(nextUrl);
+      return;
+    }
+    const { data: { user: devUser } } = await supabase.auth.getUser();
+    if (devUser) {
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id, meetup_id")
+        .eq("id", devUser.id)
+        .maybeSingle();
+
+      if (existingProfile) {
+        if (meetupId && existingProfile.meetup_id !== meetupId) {
+          const mp = new URLSearchParams();
+          if (meetupId) mp.set("meetup_id", meetupId);
+          if (meetupName) mp.set("meetup_name", meetupName);
+          if (inviteCode) mp.set("invite_code", inviteCode);
+          mp.set("returning", "true");
+          router.push(`/onboarding?${mp.toString()}`);
+        } else {
+          router.push("/discover");
+        }
+      } else {
+        const mp = new URLSearchParams();
+        if (meetupId) mp.set("meetup_id", meetupId);
+        if (meetupName) mp.set("meetup_name", meetupName);
+        if (inviteCode) mp.set("invite_code", inviteCode);
+        router.push(`/onboarding?${mp.toString()}`);
+      }
+    } else {
+      router.push("/discover");
+    }
   };
 
   if (sent) {
